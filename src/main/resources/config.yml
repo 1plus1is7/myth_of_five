@@ -1,0 +1,13 @@
+boss:
+  hp_default: 10000
+  armor_default: 50
+  name: "태초의 도깨비"
+inherit:
+  power_key: "dokkaebi.core"
+  buffs:
+    - "speed:1"
+    - "strength:1"
+  announce: true
+squad:
+  max_members: 5
+  friendly_fire: false
