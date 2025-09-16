@@ -1,4 +1,59 @@
 name: mythof5
-version: '0.8'
+version: '${version}'
 main: me.j17e4eo.mythof5.Mythof5
 api-version: '1.21'
+commands:
+  myth:
+    description: Myth administration commands
+    usage: /myth admin <subcommand>
+    permission: myth.admin.*
+  guild:
+    description: Squad management commands
+    aliases: [squad]
+    usage: /guild <subcommand>
+    permission: myth.user.squad.*
+permissions:
+  myth.admin.*:
+    description: Full access to myth admin commands
+    default: op
+    children:
+      myth.admin.spawnboss: true
+      myth.admin.bosslist: true
+      myth.admin.endboss: true
+  myth.admin.spawnboss:
+    description: Spawn a dokkaebi boss
+    default: op
+  myth.admin.bosslist:
+    description: View active bosses
+    default: op
+  myth.admin.endboss:
+    description: Forcefully end a boss
+    default: op
+  myth.user.squad.*:
+    description: Access to squad commands
+    default: true
+    children:
+      myth.user.squad.create: true
+      myth.user.squad.invite: true
+      myth.user.squad.accept: true
+      myth.user.squad.leave: true
+      myth.user.squad.disband: true
+      myth.user.squad.status: true
+  myth.user.squad.create:
+    description: Create squads
+    default: true
+  myth.user.squad.invite:
+    description: Invite players to squads
+    default: true
+  myth.user.squad.accept:
+    description: Accept squad invitations
+    default: true
+  myth.user.squad.leave:
+    description: Leave squads
+    default: true
+  myth.user.squad.disband:
+    description: Disband squads
+    default: true
+  myth.user.squad.status:
+    description: View squad status
+    default: true
