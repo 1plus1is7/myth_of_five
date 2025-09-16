@@ -1,0 +1,4 @@
+name: mythof5
+version: '0.8'
+main: me.j17e4eo.mythof5.Mythof5
+api-version: '1.21'
