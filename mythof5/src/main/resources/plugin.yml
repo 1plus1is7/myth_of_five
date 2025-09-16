@@ -7,10 +7,10 @@ commands:
     description: Myth administration commands
     usage: /myth admin <subcommand>
     permission: myth.admin.*
-  guild:
+  squad:
     description: Squad management commands
-    aliases: [squad]
-    usage: /guild <subcommand>
+    aliases: [sq]
+    usage: /squad <subcommand>
     permission: myth.user.squad.*
 permissions:
   myth.admin.*:
