@@ -1,5 +1,6 @@
 package me.j17e4eo.mythof5.listener;
 
+import me.j17e4eo.mythof5.config.Messages;
 import me.j17e4eo.mythof5.squad.SquadManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -15,10 +16,12 @@ public class SquadListener implements Listener {
 
     private final SquadManager squadManager;
     private final boolean friendlyFireAllowed;
+    private final Messages messages;
 
-    public SquadListener(SquadManager squadManager, boolean friendlyFireAllowed) {
+    public SquadListener(SquadManager squadManager, boolean friendlyFireAllowed, Messages messages) {
         this.squadManager = squadManager;
         this.friendlyFireAllowed = friendlyFireAllowed;
+        this.messages = messages;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -37,7 +40,7 @@ public class SquadListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        attacker.sendMessage(Component.text("부대원에게 피해를 줄 수 없습니다.", NamedTextColor.RED));
+        attacker.sendMessage(Component.text(messages.format("squad.friendly_fire_blocked"), NamedTextColor.RED));
     }
 
     private Player resolveAttacker(Entity damager) {

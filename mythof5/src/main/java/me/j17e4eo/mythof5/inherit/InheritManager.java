@@ -1,6 +1,7 @@
 package me.j17e4eo.mythof5.inherit;
 
 import me.j17e4eo.mythof5.Mythof5;
+import me.j17e4eo.mythof5.config.Messages;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +32,8 @@ public class InheritManager {
     private final NamespacedKey powerKeyKey;
     private final String powerKeyValue;
     private final boolean announceEnabled;
+    private final boolean transferOnPvpDeath;
+    private final Messages messages;
     private final List<PowerBuff> buffs = new ArrayList<>();
     private final Set<UUID> applyTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<UUID> removeTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -38,12 +42,14 @@ public class InheritManager {
     private UUID inheritorId;
     private String inheritorName;
 
-    public InheritManager(Mythof5 plugin) {
+    public InheritManager(Mythof5 plugin, Messages messages) {
         this.plugin = plugin;
+        this.messages = messages;
         this.inheritorFlagKey = new NamespacedKey(plugin, "is_inheritor");
         this.powerKeyKey = new NamespacedKey(plugin, "power_key");
         this.powerKeyValue = plugin.getConfig().getString("inherit.power_key", "dokkaebi.core");
         this.announceEnabled = plugin.getConfig().getBoolean("inherit.announce", true);
+        this.transferOnPvpDeath = plugin.getConfig().getBoolean("inherit.transfer_on_pvp_death", false);
         loadBuffs();
     }
 
@@ -119,7 +125,8 @@ public class InheritManager {
             return;
         }
         Player killer = player.getKiller();
-        if (killer == null) {
+        if (transferOnPvpDeath && killer != null && !killer.getUniqueId().equals(player.getUniqueId())) {
+            transferInheritance(killer, player);
             return;
         }
         String name = inheritorName != null ? inheritorName : player.getName();
@@ -138,13 +145,35 @@ public class InheritManager {
             Player previous = Bukkit.getPlayer(inheritorId);
             if (previous != null) {
                 removePower(previous);
-                previous.sendMessage(Component.text("도깨비의 힘이 다른 계승자에게 이전되었습니다.", NamedTextColor.GRAY));
+                previous.sendMessage(Component.text(messages.format("inherit.previous_replaced"), NamedTextColor.GRAY));
             }
         }
         inheritorId = uuid;
         inheritorName = player.getName();
         applyPower(player);
         save();
+    }
+
+    public void grantFromBoss(Player player, String bossName) {
+        setInheritor(player);
+        if (announceEnabled) {
+            plugin.broadcast(messages.format("inherit.broadcast.gain", Map.of(
+                    "player", player.getName(),
+                    "boss", bossName
+            )));
+        }
+        plugin.getLogger().info(String.format("[Event:MYTH_INHERITED] %s inherited the power by defeating %s.", player.getName(), bossName));
+    }
+
+    private void transferInheritance(Player killer, Player victim) {
+        setInheritor(killer);
+        if (announceEnabled) {
+            plugin.broadcast(messages.format("inherit.broadcast.transfer", Map.of(
+                    "killer", killer.getName(),
+                    "victim", victim.getName()
+            )));
+        }
+        plugin.getLogger().info(String.format("[Event:MYTH_TRANSFERRED] %s claimed the power from %s.", killer.getName(), victim.getName()));
     }
 
     public void clearInheritor(boolean announce) {
@@ -166,7 +195,7 @@ public class InheritManager {
         save();
         if (announce && targetName != null) {
             if (announceEnabled) {
-                plugin.broadcast("[방송] " + targetName + "가 쓰러져 도깨비의 힘이 사라졌다.");
+                plugin.broadcast(messages.format("inherit.broadcast.loss", Map.of("player", targetName)));
             }
             plugin.getLogger().info(String.format("[Event:MYTH_LOST] %s lost the power.", targetName));
         }
@@ -239,10 +268,6 @@ public class InheritManager {
 
     public String getInheritorName() {
         return inheritorName;
-    }
-
-    public boolean isAnnouncementsEnabled() {
-        return announceEnabled;
     }
 
     private record PowerBuff(PotionEffectType type, int amplifier) {

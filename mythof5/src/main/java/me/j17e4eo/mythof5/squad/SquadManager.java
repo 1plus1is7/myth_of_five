@@ -1,6 +1,7 @@
 package me.j17e4eo.mythof5.squad;
 
 import me.j17e4eo.mythof5.Mythof5;
+import me.j17e4eo.mythof5.config.Messages;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,58 +28,70 @@ import java.util.stream.Collectors;
 public class SquadManager {
 
     private final Mythof5 plugin;
+    private final Messages messages;
     private final Map<String, Squad> squads = new HashMap<>();
     private final Map<UUID, String> membership = new HashMap<>();
     private final Map<UUID, Set<String>> invites = new HashMap<>();
     private final int maxMembers;
     private File dataFile;
     private YamlConfiguration dataConfig;
+    private File invitesFile;
+    private YamlConfiguration invitesConfig;
 
-    public SquadManager(Mythof5 plugin) {
+    public SquadManager(Mythof5 plugin, Messages messages) {
         this.plugin = plugin;
-        this.maxMembers = plugin.getConfig().getInt("squad.max_members", 5);
+        this.messages = messages;
+        int configured = plugin.getConfig().getInt("squad.max_members", 5);
+        if (configured < 1) {
+            plugin.getLogger().warning("squad.max_members must be at least 1. Using default 5.");
+            configured = 5;
+        }
+        this.maxMembers = configured;
     }
 
     public void load() {
         plugin.getDataFolder().mkdirs();
+        squads.clear();
+        membership.clear();
+        invites.clear();
         dataFile = new File(plugin.getDataFolder(), "squads.yml");
         if (!dataFile.exists()) {
             dataConfig = new YamlConfiguration();
-            return;
-        }
-        dataConfig = YamlConfiguration.loadConfiguration(dataFile);
-        ConfigurationSection squadsSection = dataConfig.getConfigurationSection("squads");
-        if (squadsSection == null) {
-            return;
-        }
-        for (String key : squadsSection.getKeys(false)) {
-            ConfigurationSection section = squadsSection.getConfigurationSection(key);
-            if (section == null) {
-                continue;
-            }
-            String ownerId = section.getString("owner");
-            if (ownerId == null) {
-                continue;
-            }
-            UUID owner;
-            try {
-                owner = UUID.fromString(ownerId);
-            } catch (IllegalArgumentException ex) {
-                plugin.getLogger().warning("Invalid owner UUID for squad " + key);
-                continue;
-            }
-            Squad squad = new Squad(key, owner);
-            List<String> memberIds = section.getStringList("members");
-            for (String memberId : memberIds) {
-                try {
-                    UUID uuid = UUID.fromString(memberId);
-                    squad.addMember(uuid);
-                } catch (IllegalArgumentException ex) {
-                    plugin.getLogger().warning("Invalid member UUID in squad " + key + ": " + memberId);
+        } else {
+            dataConfig = YamlConfiguration.loadConfiguration(dataFile);
+            ConfigurationSection squadsSection = dataConfig.getConfigurationSection("squads");
+            if (squadsSection != null) {
+                for (String key : squadsSection.getKeys(false)) {
+                    ConfigurationSection section = squadsSection.getConfigurationSection(key);
+                    if (section == null) {
+                        continue;
+                    }
+                    String ownerId = section.getString("owner");
+                    if (ownerId == null) {
+                        continue;
+                    }
+                    UUID owner;
+                    try {
+                        owner = UUID.fromString(ownerId);
+                    } catch (IllegalArgumentException ex) {
+                        plugin.getLogger().warning("Invalid owner UUID for squad " + key);
+                        continue;
+                    }
+                    Squad squad = new Squad(section.getString("name", key), owner);
+                    List<String> memberIds = section.getStringList("members");
+                    for (String memberId : memberIds) {
+                        try {
+                            UUID uuid = UUID.fromString(memberId);
+                            squad.addMember(uuid);
+                        } catch (IllegalArgumentException ex) {
+                            plugin.getLogger().warning("Invalid member UUID in squad " + key + ": " + memberId);
+                        }
+                    }
+                    registerSquad(squad);
                 }
             }
-            registerSquad(squad);
         }
+        loadInvites();
     }
 
     public void save() {
@@ -87,7 +101,9 @@ public class SquadManager {
         dataConfig.set("squads", null);
         ConfigurationSection squadsSection = dataConfig.createSection("squads");
         for (Squad squad : squads.values()) {
-            ConfigurationSection section = squadsSection.createSection(squad.getName());
+            String key = normalize(squad.getName());
+            ConfigurationSection section = squadsSection.createSection(key);
+            section.set("name", squad.getName());
             section.set("owner", squad.getOwner().toString());
             List<String> members = new ArrayList<>();
             for (UUID uuid : squad.getMembers()) {
@@ -107,18 +123,20 @@ public class SquadManager {
 
     public boolean createSquad(Player owner, String name) {
         if (membership.containsKey(owner.getUniqueId())) {
-            owner.sendMessage(Component.text("이미 다른 부대에 소속되어 있습니다.", NamedTextColor.RED));
+            owner.sendMessage(Component.text(messages.format("squad.already_in_squad"), NamedTextColor.RED));
             return false;
         }
         String key = normalize(name);
         if (squads.containsKey(key)) {
-            owner.sendMessage(Component.text("이미 존재하는 부대 이름입니다.", NamedTextColor.RED));
+            owner.sendMessage(Component.text(messages.format("squad.name_taken"), NamedTextColor.RED));
             return false;
         }
         Squad squad = new Squad(name, owner.getUniqueId());
         registerSquad(squad);
         save();
-        plugin.broadcast("[방송] " + owner.getName() + "가 부대 " + name + "을(를) 창설했습니다.");
+        saveInvites();
+        owner.sendMessage(Component.text(messages.format("squad.create_success", Map.of("squad", squad.getName())), NamedTextColor.GREEN));
+        plugin.broadcast(messages.format("broadcast.squad_created", Map.of("player", owner.getName(), "squad", squad.getName())));
         plugin.getLogger().info(String.format("[Event:SQUAD_CREATED] %s created squad %s", owner.getName(), name));
         return true;
     }
@@ -126,25 +144,32 @@ public class SquadManager {
     public boolean invite(Player owner, Player target) {
         Optional<Squad> optional = getSquad(owner.getUniqueId());
         if (optional.isEmpty()) {
-            owner.sendMessage(Component.text("부대를 먼저 생성해야 합니다.", NamedTextColor.RED));
+            owner.sendMessage(Component.text(messages.format("squad.create_first"), NamedTextColor.RED));
             return false;
         }
         Squad squad = optional.get();
         if (!squad.isOwner(owner.getUniqueId())) {
-            owner.sendMessage(Component.text("부대장만 초대할 수 있습니다.", NamedTextColor.RED));
+            owner.sendMessage(Component.text(messages.format("squad.only_owner_invite"), NamedTextColor.RED));
             return false;
         }
         if (membership.containsKey(target.getUniqueId())) {
-            owner.sendMessage(Component.text("해당 플레이어는 이미 다른 부대에 소속되어 있습니다.", NamedTextColor.RED));
+            owner.sendMessage(Component.text(messages.format("squad.target_in_squad"), NamedTextColor.RED));
             return false;
         }
         if (squad.size() >= maxMembers) {
-            owner.sendMessage(Component.text("부대 인원이 가득 찼습니다.", NamedTextColor.RED));
+            owner.sendMessage(Component.text(messages.format("squad.full"), NamedTextColor.RED));
             return false;
         }
         invites.computeIfAbsent(target.getUniqueId(), uuid -> new HashSet<>()).add(normalize(squad.getName()));
-        target.sendMessage(Component.text(owner.getName() + "가 " + target.getName() + "를 부대에 초대했습니다. /guild accept " + squad.getName() + " 로 수락", NamedTextColor.GOLD));
-        owner.sendMessage(Component.text(target.getName() + "에게 초대장을 보냈습니다.", NamedTextColor.GREEN));
+        saveInvites();
+        target.sendMessage(Component.text(messages.format("squad.invite_sent_target", Map.of(
+                "owner", owner.getName(),
+                "squad", squad.getName()
+        )), NamedTextColor.GOLD));
+        owner.sendMessage(Component.text(messages.format("squad.invite_sent_owner", Map.of(
+                "player", target.getName(),
+                "squad", squad.getName()
+        )), NamedTextColor.GREEN));
         plugin.getLogger().info(String.format("[Event:SQUAD_INVITED] %s invited %s to squad %s", owner.getName(), target.getName(), squad.getName()));
         return true;
     }
@@ -153,7 +178,7 @@ public class SquadManager {
         String key = normalize(squadName);
         Set<String> pending = invites.get(player.getUniqueId());
         if (pending == null || !pending.contains(key)) {
-            player.sendMessage(Component.text("해당 부대의 초대가 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.no_invite"), NamedTextColor.RED));
             return false;
         }
         pending.remove(key);
@@ -162,17 +187,19 @@ public class SquadManager {
         }
         Squad squad = squads.get(key);
         if (squad == null) {
-            player.sendMessage(Component.text("해당 부대는 존재하지 않습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.not_found"), NamedTextColor.RED));
             return false;
         }
         if (squad.size() >= maxMembers) {
-            player.sendMessage(Component.text("부대 인원이 가득 찼습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.full"), NamedTextColor.RED));
             return false;
         }
         squad.addMember(player.getUniqueId());
         membership.put(player.getUniqueId(), key);
         save();
-        plugin.broadcast("[방송] " + player.getName() + "가 부대 " + squad.getName() + "에 합류했습니다.");
+        saveInvites();
+        player.sendMessage(Component.text(messages.format("squad.join_success", Map.of("squad", squad.getName())), NamedTextColor.GREEN));
+        plugin.broadcast(messages.format("broadcast.squad_joined", Map.of("player", player.getName(), "squad", squad.getName())));
         plugin.getLogger().info(String.format("[Event:SQUAD_JOINED] %s joined squad %s", player.getName(), squad.getName()));
         return true;
     }
@@ -181,12 +208,12 @@ public class SquadManager {
         UUID uuid = player.getUniqueId();
         Optional<Squad> optional = getSquad(uuid);
         if (optional.isEmpty()) {
-            player.sendMessage(Component.text("소속된 부대가 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.no_membership"), NamedTextColor.RED));
             return false;
         }
         Squad squad = optional.get();
         if (squad.isOwner(uuid)) {
-            player.sendMessage(Component.text("부대장은 /guild disband 로 해산해야 합니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.leave_owner_forbidden"), NamedTextColor.RED));
             return false;
         }
         if (!squad.removeMember(uuid)) {
@@ -194,7 +221,9 @@ public class SquadManager {
         }
         membership.remove(uuid);
         save();
-        plugin.broadcast("[방송] " + player.getName() + "가 부대 " + squad.getName() + "에서 탈퇴했습니다.");
+        saveInvites();
+        player.sendMessage(Component.text(messages.format("squad.leave_success", Map.of("squad", squad.getName())), NamedTextColor.GREEN));
+        plugin.broadcast(messages.format("broadcast.squad_left", Map.of("player", player.getName(), "squad", squad.getName())));
         plugin.getLogger().info(String.format("[Event:SQUAD_LEFT] %s left squad %s", player.getName(), squad.getName()));
         return true;
     }
@@ -203,17 +232,19 @@ public class SquadManager {
         UUID uuid = player.getUniqueId();
         Optional<Squad> optional = getSquad(uuid);
         if (optional.isEmpty()) {
-            player.sendMessage(Component.text("소속된 부대가 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.no_membership"), NamedTextColor.RED));
             return false;
         }
         Squad squad = optional.get();
         if (!squad.isOwner(uuid)) {
-            player.sendMessage(Component.text("부대장만 해산할 수 있습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("squad.only_owner_disband"), NamedTextColor.RED));
             return false;
         }
         unregisterSquad(squad);
         save();
-        plugin.broadcast("[방송] 부대 " + squad.getName() + "이(가) 해산되었습니다.");
+        saveInvites();
+        player.sendMessage(Component.text(messages.format("squad.disband_success", Map.of("squad", squad.getName())), NamedTextColor.GREEN));
+        plugin.broadcast(messages.format("broadcast.squad_disbanded", Map.of("squad", squad.getName())));
         plugin.getLogger().info(String.format("[Event:SQUAD_DISBANDED] %s disbanded squad %s", player.getName(), squad.getName()));
         return true;
     }
@@ -221,18 +252,22 @@ public class SquadManager {
     public void sendStatus(Player player) {
         Optional<Squad> optional = getSquad(player.getUniqueId());
         if (optional.isEmpty()) {
-            player.sendMessage(Component.text("소속된 부대가 없습니다.", NamedTextColor.GRAY));
+            player.sendMessage(Component.text(messages.format("squad.no_membership"), NamedTextColor.GRAY));
             return;
         }
         Squad squad = optional.get();
         long onlineCount = squad.getMembers().stream().map(Bukkit::getPlayer).filter(Objects::nonNull).count();
         String ownerName = resolveName(squad.getOwner());
         List<String> memberNames = squad.getMembers().stream().map(this::resolveName).collect(Collectors.toList());
-        player.sendMessage(Component.text("=== 부대 상태 ===", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("부대명: " + squad.getName(), NamedTextColor.GREEN));
-        player.sendMessage(Component.text("부대장: " + ownerName, NamedTextColor.GREEN));
-        player.sendMessage(Component.text(String.format("인원: %d/%d (온라인 %d)", squad.size(), maxMembers, onlineCount), NamedTextColor.GREEN));
-        player.sendMessage(Component.text("부대원: " + String.join(", ", memberNames), NamedTextColor.GREEN));
+        player.sendMessage(Component.text(messages.format("squad.status_header"), NamedTextColor.GOLD));
+        player.sendMessage(Component.text(messages.format("squad.status_name", Map.of("squad", squad.getName())), NamedTextColor.GREEN));
+        player.sendMessage(Component.text(messages.format("squad.status_owner", Map.of("owner", ownerName)), NamedTextColor.GREEN));
+        player.sendMessage(Component.text(messages.format("squad.status_count", Map.of(
+                "count", String.valueOf(squad.size()),
+                "max", String.valueOf(maxMembers),
+                "online", String.valueOf(onlineCount)
+        )), NamedTextColor.GREEN));
+        player.sendMessage(Component.text(messages.format("squad.status_members", Map.of("members", String.join(", ", memberNames))), NamedTextColor.GREEN));
     }
 
     public Optional<Squad> getSquad(UUID uuid) {
@@ -255,7 +290,15 @@ public class SquadManager {
     }
 
     public Set<String> getInvites(UUID uuid) {
-        return invites.getOrDefault(uuid, Set.of());
+        Set<String> pending = invites.get(uuid);
+        if (pending == null || pending.isEmpty()) {
+            return Set.of();
+        }
+        return pending.stream()
+                .map(squads::get)
+                .filter(Objects::nonNull)
+                .map(Squad::getName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private void registerSquad(Squad squad) {
@@ -289,5 +332,72 @@ public class SquadManager {
             return offlinePlayer.getName();
         }
         return uuid.toString();
+    }
+
+    private void loadInvites() {
+        invitesFile = new File(plugin.getDataFolder(), "invites.yml");
+        if (!invitesFile.exists()) {
+            invitesConfig = new YamlConfiguration();
+            return;
+        }
+        invitesConfig = YamlConfiguration.loadConfiguration(invitesFile);
+        ConfigurationSection section = invitesConfig.getConfigurationSection("invites");
+        if (section == null) {
+            return;
+        }
+        for (String key : section.getKeys(false)) {
+            try {
+                UUID playerId = UUID.fromString(key);
+                List<String> squadNames = section.getStringList(key);
+                Set<String> normalized = new HashSet<>();
+                for (String squadName : squadNames) {
+                    String normalizedKey = normalize(squadName);
+                    if (squads.containsKey(normalizedKey)) {
+                        normalized.add(normalizedKey);
+                    }
+                }
+                if (!normalized.isEmpty()) {
+                    invites.put(playerId, normalized);
+                }
+            } catch (IllegalArgumentException ex) {
+                plugin.getLogger().warning("Invalid player UUID in invites.yml: " + key);
+            }
+        }
+    }
+
+    public void saveInvites() {
+        if (invitesConfig == null) {
+            invitesConfig = new YamlConfiguration();
+        }
+        invites.entrySet().removeIf(entry -> {
+            Set<String> pending = entry.getValue();
+            pending.removeIf(name -> !squads.containsKey(name));
+            return pending.isEmpty();
+        });
+        invitesConfig.set("invites", null);
+        ConfigurationSection section = invitesConfig.createSection("invites");
+        for (Map.Entry<UUID, Set<String>> entry : invites.entrySet()) {
+            Set<String> pending = entry.getValue();
+            if (pending.isEmpty()) {
+                continue;
+            }
+            List<String> squadsList = pending.stream()
+                    .map(squads::get)
+                    .filter(Objects::nonNull)
+                    .map(Squad::getName)
+                    .collect(Collectors.toList());
+            if (squadsList.isEmpty()) {
+                continue;
+            }
+            section.set(entry.getKey().toString(), squadsList);
+        }
+        if (invitesFile == null) {
+            invitesFile = new File(plugin.getDataFolder(), "invites.yml");
+        }
+        try {
+            invitesConfig.save(invitesFile);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Failed to save squad invites: " + e.getMessage());
+        }
     }
 }

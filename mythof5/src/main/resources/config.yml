@@ -8,6 +8,12 @@ inherit:
     - "speed:1"
     - "strength:1"
   announce: true
+  transfer_on_pvp_death: false
 squad:
   max_members: 5
   friendly_fire: false
+movement:
+  double_jump:
+    enabled: true
+    vertical_velocity: 0.9
+    forward_multiplier: 0.6
