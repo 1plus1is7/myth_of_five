@@ -2,6 +2,7 @@ package me.j17e4eo.mythof5.boss;
 
 import org.bukkit.ChatColor;
 import org.bukkit.boss.BossBar;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
@@ -11,15 +12,15 @@ public class BossInstance {
     private final LivingEntity entity;
     private final BossBar bossBar;
     private final String displayName;
-    private final String broadcastName;
+    private final EntityType entityType;
     private final double maxHealth;
 
-    public BossInstance(int id, LivingEntity entity, BossBar bossBar, String displayName, String broadcastName, double maxHealth) {
+    public BossInstance(int id, LivingEntity entity, BossBar bossBar, String displayName, EntityType entityType, double maxHealth) {
         this.id = id;
         this.entity = entity;
         this.bossBar = bossBar;
         this.displayName = displayName;
-        this.broadcastName = broadcastName;
+        this.entityType = entityType;
         this.maxHealth = maxHealth;
     }
 
@@ -31,8 +32,16 @@ public class BossInstance {
         return entity;
     }
 
-    public String getBroadcastName() {
-        return broadcastName;
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public EntityType getEntityType() {
+        return entityType;
+    }
+
+    public double getMaxHealth() {
+        return maxHealth;
     }
 
     public void addViewer(Player player) {

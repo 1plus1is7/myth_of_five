@@ -1,5 +1,6 @@
 package me.j17e4eo.mythof5.command;
 
+import me.j17e4eo.mythof5.config.Messages;
 import me.j17e4eo.mythof5.squad.SquadManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -17,18 +18,20 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class GuildCommand implements CommandExecutor, TabCompleter {
+public class SquadCommand implements CommandExecutor, TabCompleter {
 
     private final SquadManager squadManager;
+    private final Messages messages;
 
-    public GuildCommand(SquadManager squadManager) {
+    public SquadCommand(SquadManager squadManager, Messages messages) {
         this.squadManager = squadManager;
+        this.messages = messages;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("플레이어만 사용 가능한 명령어입니다.", NamedTextColor.RED));
+            sender.sendMessage(Component.text(messages.format("commands.common.player_only"), NamedTextColor.RED));
             return true;
         }
         if (args.length == 0) {
@@ -38,13 +41,13 @@ public class GuildCommand implements CommandExecutor, TabCompleter {
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
             case "create":
-                handleCreate(player, args);
+                handleCreate(player, label, args);
                 return true;
             case "invite":
-                handleInvite(player, args);
+                handleInvite(player, label, args);
                 return true;
             case "accept":
-                handleAccept(player, args);
+                handleAccept(player, label, args);
                 return true;
             case "leave":
                 handleLeave(player);
@@ -61,51 +64,51 @@ public class GuildCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void handleCreate(Player player, String[] args) {
+    private void handleCreate(Player player, String label, String[] args) {
         if (!hasPermission(player, "myth.user.squad.create")) {
-            player.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(Component.text("사용법: /guild create <이름>", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.squad.create_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
             return;
         }
         String name = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
         if (name.isEmpty()) {
-            player.sendMessage(Component.text("부대 이름을 입력해주세요.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.squad.name_required"), NamedTextColor.RED));
             return;
         }
         squadManager.createSquad(player, name);
     }
 
-    private void handleInvite(Player player, String[] args) {
+    private void handleInvite(Player player, String label, String[] args) {
         if (!hasPermission(player, "myth.user.squad.invite")) {
-            player.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(Component.text("사용법: /guild invite <플레이어>", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.squad.invite_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) {
-            player.sendMessage(Component.text("해당 플레이어는 온라인이 아닙니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.squad.player_not_online"), NamedTextColor.RED));
             return;
         }
         if (target.equals(player)) {
-            player.sendMessage(Component.text("자기 자신은 초대할 수 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.squad.cannot_invite_self"), NamedTextColor.RED));
             return;
         }
         squadManager.invite(player, target);
     }
 
-    private void handleAccept(Player player, String[] args) {
+    private void handleAccept(Player player, String label, String[] args) {
         if (!hasPermission(player, "myth.user.squad.accept")) {
-            player.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(Component.text("사용법: /guild accept <부대>", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.squad.accept_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
             return;
         }
         String name = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
@@ -114,7 +117,7 @@ public class GuildCommand implements CommandExecutor, TabCompleter {
 
     private void handleLeave(Player player) {
         if (!hasPermission(player, "myth.user.squad.leave")) {
-            player.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
             return;
         }
         squadManager.leave(player);
@@ -122,7 +125,7 @@ public class GuildCommand implements CommandExecutor, TabCompleter {
 
     private void handleDisband(Player player) {
         if (!hasPermission(player, "myth.user.squad.disband")) {
-            player.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
             return;
         }
         squadManager.disband(player);
@@ -130,7 +133,7 @@ public class GuildCommand implements CommandExecutor, TabCompleter {
 
     private void handleStatus(Player player) {
         if (!hasPermission(player, "myth.user.squad.status")) {
-            player.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
             return;
         }
         squadManager.sendStatus(player);
@@ -141,13 +144,10 @@ public class GuildCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendUsage(Player player, String label) {
-        player.sendMessage(Component.text("사용법:", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/" + label + " create <이름>", NamedTextColor.GRAY));
-        player.sendMessage(Component.text("/" + label + " invite <플레이어>", NamedTextColor.GRAY));
-        player.sendMessage(Component.text("/" + label + " accept <부대>", NamedTextColor.GRAY));
-        player.sendMessage(Component.text("/" + label + " leave", NamedTextColor.GRAY));
-        player.sendMessage(Component.text("/" + label + " disband", NamedTextColor.GRAY));
-        player.sendMessage(Component.text("/" + label + " status", NamedTextColor.GRAY));
+        player.sendMessage(Component.text(messages.format("commands.common.usage_header"), NamedTextColor.GOLD));
+        for (String line : messages.formatList("commands.squad.usage", java.util.Map.of("label", label))) {
+            player.sendMessage(Component.text("/" + line, NamedTextColor.GRAY));
+        }
     }
 
     @Override
