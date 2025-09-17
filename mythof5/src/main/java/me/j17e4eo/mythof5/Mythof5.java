@@ -1,8 +1,8 @@
 package me.j17e4eo.mythof5;
 
 import me.j17e4eo.mythof5.boss.BossManager;
-import me.j17e4eo.mythof5.command.SquadCommand;
 import me.j17e4eo.mythof5.command.MythAdminCommand;
+import me.j17e4eo.mythof5.command.SquadCommand;
 import me.j17e4eo.mythof5.config.Messages;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import me.j17e4eo.mythof5.listener.BossListener;
@@ -94,6 +94,7 @@ public final class Mythof5 extends JavaPlugin {
         SquadCommand squadExecutor = new SquadCommand(squadManager, messages);
         squadCommand.setExecutor(squadExecutor);
         squadCommand.setTabCompleter(squadExecutor);
+
     }
 
     public BossManager getBossManager() {
@@ -126,9 +127,14 @@ public final class Mythof5 extends JavaPlugin {
         config.addDefault("boss.armor_default", 50D);
         config.addDefault("boss.name", "태초의 도깨비");
         config.addDefault("inherit.power_key", "dokkaebi.core");
-        config.addDefault("inherit.buffs", List.of("speed:1", "strength:1"));
+        config.addDefault("inherit.buffs", List.of(
+                "generic.max_health:set:40",
+                "generic.movement_speed:add:0.03",
+                "generic.attack_damage:add:2"
+        ));
         config.addDefault("inherit.announce", true);
-        config.addDefault("inherit.transfer_on_pvp_death", false);
+        config.addDefault("inherit.transformation.scale_multiplier", 2.0D);
+        config.addDefault("inherit.transformation.attack_bonus", 6.0D);
         config.addDefault("squad.max_members", 5);
         config.addDefault("squad.friendly_fire", false);
         config.addDefault("movement.double_jump.enabled", true);

@@ -14,6 +14,9 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.util.Vector;
 
@@ -51,6 +54,25 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
         inheritManager.handleDeath(event);
+    }
+
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent event) {
+        inheritManager.handleGoblinFlameDrop(event);
+    }
+
+    @EventHandler
+    public void onPrepareCraft(PrepareItemCraftEvent event) {
+        if (inheritManager.containsGoblinFlame(event.getInventory().getMatrix())) {
+            event.getInventory().setResult(null);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onCraft(CraftItemEvent event) {
+        if (inheritManager.containsGoblinFlame(event.getInventory().getMatrix())) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
