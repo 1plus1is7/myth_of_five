@@ -26,6 +26,10 @@ commands:
     invalid_boss_id: "bossId는 숫자여야 합니다."
     end_success: "보스를 종료했습니다."
     end_not_found: "해당 ID의 보스를 찾을 수 없습니다."
+  goblin:
+    activated: "도깨비화가 발동되었습니다!"
+    deactivated: "도깨비화를 해제했습니다."
+    not_inheritor: "도깨비의 힘을 가진 플레이어만 사용할 수 있습니다."
   squad:
     usage:
       - "{label} create <이름>"

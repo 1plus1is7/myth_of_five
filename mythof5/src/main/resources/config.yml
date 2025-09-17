@@ -5,10 +5,13 @@ boss:
 inherit:
   power_key: "dokkaebi.core"
   buffs:
-    - "speed:1"
-    - "strength:1"
+    - "generic.max_health:set:40"
+    - "generic.movement_speed:add:0.03"
+    - "generic.attack_damage:add:2"
   announce: true
-  transfer_on_pvp_death: false
+  transformation:
+    scale_multiplier: 2.0
+    attack_bonus: 6.0
 squad:
   max_members: 5
   friendly_fire: false
