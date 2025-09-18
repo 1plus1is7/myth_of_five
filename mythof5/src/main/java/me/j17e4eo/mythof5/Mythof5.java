@@ -73,6 +73,7 @@ public final class Mythof5 extends JavaPlugin {
         PlayerListener playerListener = new PlayerListener(bossManager, inheritManager, aspectManager,
                 doubleJumpEnabled, doubleJumpVerticalVelocity, doubleJumpForwardMultiplier);
         pluginManager.registerEvents(playerListener, this);
+        pluginManager.registerEvents(inheritManager, this);
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
 
         registerCommands();

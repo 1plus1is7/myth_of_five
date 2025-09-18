@@ -5,25 +5,34 @@ import me.j17e4eo.mythof5.config.Messages;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.World;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -39,7 +48,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InheritManager {
+public class InheritManager implements Listener {
 
     private final Mythof5 plugin;
     private final NamespacedKey inheritorFlagKey;
@@ -62,6 +71,12 @@ public class InheritManager {
     private final Map<GoblinAspect, TransformationProfile> transformationProfiles = new EnumMap<>(GoblinAspect.class);
     private final TransformationProfile defaultTransformationProfile;
     private final Component goblinFlameDisplayName = Component.text("도깨비불", NamedTextColor.GOLD);
+    private final Component transformationMenuTitle = Component.text("도깨비 변신 선택", NamedTextColor.GOLD);
+    private final NamespacedKey transformationAspectKey;
+    private final NamespacedKey transformationMenuAspectKey;
+    private final Map<UUID, GoblinAspect> activeTransformationAspects = new ConcurrentHashMap<>();
+    private final Set<UUID> pendingTransformationSelection = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final int TRANSFORMATION_MENU_SIZE = 9;
     private static final double ATTRIBUTE_EPSILON = 1.0E-4D;
     private File dataFile;
     private YamlConfiguration dataConfig;
@@ -77,6 +92,8 @@ public class InheritManager {
         this.transformationFlagKey = new NamespacedKey(plugin, "goblin_transformed");
         this.transformationGlowKey = new NamespacedKey(plugin, "goblin_prev_glow");
         this.goblinFlameKey = new NamespacedKey(plugin, "goblin_flame");
+        this.transformationAspectKey = new NamespacedKey(plugin, "goblin_transform_aspect");
+        this.transformationMenuAspectKey = new NamespacedKey(plugin, "goblin_transform_menu_aspect");
         this.transformationScaleModifierKey = new NamespacedKey(plugin, "goblin_transform_scale");
         this.transformationAttackModifierKey = new NamespacedKey(plugin, "goblin_transform_attack");
         this.transformationSpeedModifierKey = new NamespacedKey(plugin, "goblin_transform_speed");
@@ -455,7 +472,7 @@ public class InheritManager {
     }
 
     public void handlePlayerQuit(Player player) {
-        // No specific handling required; keep state for reapplication.
+        pendingTransformationSelection.remove(player.getUniqueId());
     }
 
     public UUID getInheritorId() {
@@ -471,16 +488,32 @@ public class InheritManager {
     }
 
     public boolean toggleTransformation(Player player) {
-        boolean activated;
         if (isTransformed(player)) {
             clearTransformation(player);
-            activated = false;
-        } else {
-            activateTransformation(player);
-            activated = true;
+            sendTransformationFeedback(player, false);
+            return false;
         }
-        sendTransformationFeedback(player, activated);
-        return activated;
+
+        UUID uuid = player.getUniqueId();
+        if (pendingTransformationSelection.contains(uuid)) {
+            return false;
+        }
+
+        GoblinAspect chosenAspect = null;
+        if (aspectManager != null) {
+            Set<GoblinAspect> owned = aspectManager.getAspects(uuid);
+            if (owned.size() > 1) {
+                openTransformationSelection(player, owned);
+                return false;
+            }
+            if (owned.size() == 1) {
+                chosenAspect = owned.iterator().next();
+            }
+        }
+
+        activateTransformation(player, chosenAspect);
+        sendTransformationFeedback(player, true);
+        return true;
     }
 
     private void sendTransformationFeedback(Player player, boolean activated) {
@@ -511,7 +544,7 @@ public class InheritManager {
         return pdc.has(transformationFlagKey, PersistentDataType.BYTE);
     }
 
-    private void activateTransformation(Player player) {
+    private void activateTransformation(Player player, GoblinAspect aspect) {
         UUID uuid = player.getUniqueId();
         if (!transformedPlayers.add(uuid)) {
             return;
@@ -519,6 +552,7 @@ public class InheritManager {
         PersistentDataContainer pdc = player.getPersistentDataContainer();
         pdc.set(transformationFlagKey, PersistentDataType.BYTE, (byte) 1);
         pdc.set(transformationGlowKey, PersistentDataType.BYTE, player.isGlowing() ? (byte) 1 : (byte) 0);
+        setActiveTransformationAspect(player, aspect);
         applyTransformationAttributes(player);
         player.setGlowing(true);
     }
@@ -533,6 +567,96 @@ public class InheritManager {
         player.setGlowing(wasGlowing);
         pdc.remove(transformationFlagKey);
         pdc.remove(transformationGlowKey);
+        setActiveTransformationAspect(player, null);
+    }
+
+    private void setActiveTransformationAspect(Player player, GoblinAspect aspect) {
+        UUID uuid = player.getUniqueId();
+        PersistentDataContainer pdc = player.getPersistentDataContainer();
+        if (aspect == null) {
+            activeTransformationAspects.remove(uuid);
+            pdc.remove(transformationAspectKey);
+        } else {
+            activeTransformationAspects.put(uuid, aspect);
+            pdc.set(transformationAspectKey, PersistentDataType.STRING, aspect.getKey());
+        }
+    }
+
+    private GoblinAspect getStoredTransformationAspect(Player player) {
+        UUID uuid = player.getUniqueId();
+        GoblinAspect active = activeTransformationAspects.get(uuid);
+        if (active != null) {
+            return active;
+        }
+        PersistentDataContainer pdc = player.getPersistentDataContainer();
+        String storedKey = pdc.get(transformationAspectKey, PersistentDataType.STRING);
+        if (storedKey == null) {
+            return null;
+        }
+        GoblinAspect aspect = GoblinAspect.fromKey(storedKey);
+        if (aspect == null || !ownsAspect(uuid, aspect)) {
+            pdc.remove(transformationAspectKey);
+            return null;
+        }
+        activeTransformationAspects.put(uuid, aspect);
+        return aspect;
+    }
+
+    private boolean ownsAspect(UUID uuid, GoblinAspect aspect) {
+        if (aspect == null || uuid == null || aspectManager == null) {
+            return false;
+        }
+        return aspectManager.isInheritor(aspect, uuid) || aspectManager.isShared(aspect, uuid);
+    }
+
+    private void openTransformationSelection(Player player, Set<GoblinAspect> aspects) {
+        UUID uuid = player.getUniqueId();
+        pendingTransformationSelection.add(uuid);
+        Inventory inventory = Bukkit.createInventory(new TransformationMenuHolder(), TRANSFORMATION_MENU_SIZE,
+                transformationMenuTitle);
+        GoblinAspect preferred = getStoredTransformationAspect(player);
+        int slot = 0;
+        for (GoblinAspect aspect : GoblinAspect.values()) {
+            if (!aspects.contains(aspect)) {
+                continue;
+            }
+            boolean highlighted = preferred != null && preferred == aspect;
+            inventory.setItem(slot++, createAspectIcon(aspect, highlighted));
+        }
+        player.openInventory(inventory);
+        player.sendMessage(Component.text(messages.format("commands.goblin.select_prompt"), NamedTextColor.GOLD));
+    }
+
+    private ItemStack createAspectIcon(GoblinAspect aspect, boolean highlighted) {
+        ItemStack stack = new ItemStack(resolveAspectIconMaterial(aspect));
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text(aspect.getDisplayName(), NamedTextColor.GOLD)
+                    .decoration(TextDecoration.ITALIC, false));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(aspect.getPersonality(), NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(messages.format("commands.goblin.select_hint"), NamedTextColor.YELLOW)
+                    .decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore);
+            meta.getPersistentDataContainer().set(transformationMenuAspectKey, PersistentDataType.STRING, aspect.getKey());
+            if (highlighted) {
+                meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+            stack.setItemMeta(meta);
+        }
+        return stack;
+    }
+
+    private Material resolveAspectIconMaterial(GoblinAspect aspect) {
+        return switch (aspect) {
+            case POWER -> Material.NETHERITE_SWORD;
+            case SPEED -> Material.FEATHER;
+            case MISCHIEF -> Material.ENDER_PEARL;
+            case FLAME -> Material.FIRE_CHARGE;
+            case FORGE -> Material.ANVIL;
+        };
     }
 
     private void applyBuff(Player player, UUID uuid, AttributeBuff buff) {
@@ -655,20 +779,95 @@ public class InheritManager {
 
     private TransformationProfile resolveTransformationProfile(Player player) {
         UUID uuid = player.getUniqueId();
-        if (aspectManager == null) {
-            return defaultTransformationProfile;
-        }
-        for (GoblinAspect aspect : GoblinAspect.values()) {
-            if (aspectManager.isInheritor(aspect, uuid)) {
-                return transformationProfiles.getOrDefault(aspect, defaultTransformationProfile);
+        GoblinAspect selected = activeTransformationAspects.get(uuid);
+
+        if (selected == null) {
+            PersistentDataContainer pdc = player.getPersistentDataContainer();
+            String storedKey = pdc.get(transformationAspectKey, PersistentDataType.STRING);
+            if (storedKey != null) {
+                GoblinAspect storedAspect = GoblinAspect.fromKey(storedKey);
+                if (storedAspect != null && ownsAspect(uuid, storedAspect)) {
+                    activeTransformationAspects.put(uuid, storedAspect);
+                    selected = storedAspect;
+                } else {
+                    pdc.remove(transformationAspectKey);
+                }
             }
         }
-        for (GoblinAspect aspect : GoblinAspect.values()) {
-            if (aspectManager.isShared(aspect, uuid)) {
-                return transformationProfiles.getOrDefault(aspect, defaultTransformationProfile);
+
+        if (selected != null && ownsAspect(uuid, selected)) {
+            return transformationProfiles.getOrDefault(selected, defaultTransformationProfile);
+        }
+
+        if (selected != null) {
+            setActiveTransformationAspect(player, null);
+        }
+
+        if (aspectManager != null) {
+            for (GoblinAspect aspect : GoblinAspect.values()) {
+                if (ownsAspect(uuid, aspect)) {
+                    setActiveTransformationAspect(player, aspect);
+                    return transformationProfiles.getOrDefault(aspect, defaultTransformationProfile);
+                }
             }
         }
+
         return defaultTransformationProfile;
+    }
+
+    @EventHandler
+    public void handleTransformationMenuClick(InventoryClickEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof TransformationMenuHolder)) {
+            return;
+        }
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (event.getClickedInventory() != top) {
+            return;
+        }
+        ItemStack item = event.getCurrentItem();
+        if (item == null) {
+            return;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        String aspectKey = meta.getPersistentDataContainer().get(transformationMenuAspectKey, PersistentDataType.STRING);
+        if (aspectKey == null) {
+            return;
+        }
+        GoblinAspect aspect = GoblinAspect.fromKey(aspectKey);
+        if (aspect == null) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        if (!ownsAspect(uuid, aspect)) {
+            player.sendMessage(Component.text(messages.format("goblin.aspect.not_holder"), NamedTextColor.RED));
+            return;
+        }
+        pendingTransformationSelection.remove(uuid);
+        player.closeInventory();
+        activateTransformation(player, aspect);
+        sendTransformationFeedback(player, true);
+    }
+
+    @EventHandler
+    public void handleTransformationMenuClose(InventoryCloseEvent event) {
+        Inventory inventory = event.getInventory();
+        if (!(inventory.getHolder() instanceof TransformationMenuHolder)) {
+            return;
+        }
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        if (pendingTransformationSelection.remove(uuid)) {
+            player.sendMessage(Component.text(messages.format("commands.goblin.select_cancelled"), NamedTextColor.GRAY));
+        }
     }
 
     private boolean hasAttributeBuff(Player player, AttributeBuff buff) {
@@ -711,6 +910,13 @@ public class InheritManager {
                 plugin.getLogger().warning("Unknown attribute in inherit.buffs: " + token);
                 return null;
             }
+        }
+    }
+
+    private static final class TransformationMenuHolder implements InventoryHolder {
+        @Override
+        public Inventory getInventory() {
+            return Bukkit.createInventory(this, TRANSFORMATION_MENU_SIZE);
         }
     }
 
