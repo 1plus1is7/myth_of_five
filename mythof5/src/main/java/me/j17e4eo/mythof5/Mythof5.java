@@ -7,6 +7,7 @@ import me.j17e4eo.mythof5.command.GoblinCommand;
 import me.j17e4eo.mythof5.command.MythAdminCommand;
 import me.j17e4eo.mythof5.command.RelicCommand;
 import me.j17e4eo.mythof5.command.SquadCommand;
+import me.j17e4eo.mythof5.command.gui.AdminGuiManager;
 import me.j17e4eo.mythof5.config.Messages;
 import me.j17e4eo.mythof5.hunter.HunterListener;
 import me.j17e4eo.mythof5.hunter.HunterManager;
@@ -54,6 +55,7 @@ public final class Mythof5 extends JavaPlugin {
     private HunterManager hunterManager;
     private ParadoxManager paradoxManager;
     private SealManager sealManager;
+    private AdminGuiManager adminGuiManager;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -133,6 +135,10 @@ public final class Mythof5 extends JavaPlugin {
         pluginManager.registerEvents(new HunterListener(hunterManager), this);
         pluginManager.registerEvents(sealManager, this);
 
+        adminGuiManager = new AdminGuiManager(this, bossManager, aspectManager, relicManager,
+                chronicleManager, omenManager, balanceTable, messages);
+        pluginManager.registerEvents(adminGuiManager, this);
+
         registerCommands();
 
         inheritManager.reapplyToOnlinePlayers();
@@ -190,7 +196,7 @@ public final class Mythof5 extends JavaPlugin {
     private void registerCommands() {
         PluginCommand mythCommand = Objects.requireNonNull(getCommand("myth"), "Command myth not defined in plugin.yml");
         MythAdminCommand mythAdminCommand = new MythAdminCommand(this, bossManager, inheritManager, aspectManager,
-                relicManager, chronicleManager, omenManager, balanceTable, messages);
+                relicManager, chronicleManager, omenManager, balanceTable, messages, adminGuiManager);
         mythCommand.setExecutor(mythAdminCommand);
         mythCommand.setTabCompleter(mythAdminCommand);
 
