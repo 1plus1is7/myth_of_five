@@ -6,6 +6,7 @@ import me.j17e4eo.mythof5.boss.BossInstance;
 import me.j17e4eo.mythof5.boss.BossManager;
 import me.j17e4eo.mythof5.chronicle.ChronicleManager;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.command.gui.AdminGuiManager;
 import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
@@ -47,11 +48,12 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     private final OmenManager omenManager;
     private final BalanceTable balanceTable;
     private final Messages messages;
+    private final AdminGuiManager guiManager;
 
     public MythAdminCommand(Mythof5 plugin, BossManager bossManager, InheritManager inheritManager,
                             AspectManager aspectManager, RelicManager relicManager,
                             ChronicleManager chronicleManager, OmenManager omenManager,
-                            BalanceTable balanceTable, Messages messages) {
+                            BalanceTable balanceTable, Messages messages, AdminGuiManager guiManager) {
         this.plugin = plugin;
         this.bossManager = bossManager;
         this.inheritManager = inheritManager;
@@ -61,12 +63,17 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         this.omenManager = omenManager;
         this.balanceTable = balanceTable;
         this.messages = messages;
+        this.guiManager = guiManager;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            sendUsage(sender, label);
+            if (sender instanceof Player player) {
+                guiManager.openMainMenu(player);
+            } else {
+                sendUsage(sender, label);
+            }
             return true;
         }
         String root = args[0].toLowerCase(Locale.ROOT);
@@ -83,7 +90,11 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length < 2) {
-            sendUsage(sender, label);
+            if (sender instanceof Player player) {
+                guiManager.openMainMenu(player);
+            } else {
+                sendUsage(sender, label);
+            }
             return true;
         }
         String sub = args[1].toLowerCase(Locale.ROOT);
