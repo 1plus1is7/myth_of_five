@@ -10,8 +10,31 @@ inherit:
     - "generic.attack_damage:add:2"
   announce: true
   transformation:
-    scale_multiplier: 2.0
-    attack_bonus: 6.0
+    default:
+      scale_multiplier: 2.0
+      attack_bonus: 6.0
+      speed_bonus: 0.0
+    aspects:
+      power:
+        scale_multiplier: 2.4
+        attack_bonus: 9.0
+        speed_bonus: 0.02
+      speed:
+        scale_multiplier: 1.8
+        attack_bonus: 4.0
+        speed_bonus: 0.08
+      mischief:
+        scale_multiplier: 1.9
+        attack_bonus: 5.0
+        speed_bonus: 0.05
+      flame:
+        scale_multiplier: 2.1
+        attack_bonus: 5.5
+        speed_bonus: 0.04
+      forge:
+        scale_multiplier: 2.35
+        attack_bonus: 8.0
+        speed_bonus: -0.01
 squad:
   max_members: 5
   friendly_fire: false
