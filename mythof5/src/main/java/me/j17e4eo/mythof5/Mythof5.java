@@ -8,6 +8,12 @@ import me.j17e4eo.mythof5.command.MythAdminCommand;
 import me.j17e4eo.mythof5.command.RelicCommand;
 import me.j17e4eo.mythof5.command.SquadCommand;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.hunter.HunterListener;
+import me.j17e4eo.mythof5.hunter.HunterManager;
+import me.j17e4eo.mythof5.hunter.ParadoxManager;
+import me.j17e4eo.mythof5.hunter.command.HunterCommand;
+import me.j17e4eo.mythof5.hunter.data.ArtifactGrade;
+import me.j17e4eo.mythof5.hunter.math.SealMath;
 import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import me.j17e4eo.mythof5.listener.BossListener;
@@ -21,12 +27,15 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class Mythof5 extends JavaPlugin {
@@ -40,6 +49,8 @@ public final class Mythof5 extends JavaPlugin {
     private AspectManager aspectManager;
     private OmenManager omenManager;
     private BalanceTable balanceTable;
+    private HunterManager hunterManager;
+    private ParadoxManager paradoxManager;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -68,6 +79,45 @@ public final class Mythof5 extends JavaPlugin {
         squadManager = new SquadManager(this, messages);
         squadManager.load();
 
+        double fatigueWindowHours = getConfig().getDouble("hunter.release.fatigue_window_hours", 1.0D);
+        long fatigueWindowMillis = (long) (fatigueWindowHours * 60D * 60D * 1000D);
+        SealMath sealMath = new SealMath(
+                getConfig().getDouble("hunter.release.low", 0.0052D),
+                getConfig().getDouble("hunter.release.base", 0.1835D),
+                getConfig().getDouble("hunter.release.slope", 0.012D),
+                getConfig().getDouble("hunter.release.cap", 0.45D),
+                fatigueWindowMillis,
+                getConfig().getDouble("hunter.release.fatigue_min", 0.7D),
+                getConfig().getDouble("hunter.release.fatigue_max", 1.2D)
+        );
+        Map<ArtifactGrade, Double> gaugeOverrides = new EnumMap<>(ArtifactGrade.class);
+        ConfigurationSection gaugeSection = getConfig().getConfigurationSection("hunter.gauge.gain");
+        for (ArtifactGrade grade : ArtifactGrade.values()) {
+            double value = grade.getDefaultGaugeGain();
+            if (gaugeSection != null && gaugeSection.isDouble(grade.name())) {
+                value = gaugeSection.getDouble(grade.name());
+            }
+            gaugeOverrides.put(grade, value);
+        }
+        double sealPatchValue = getConfig().getDouble("hunter.seal.patch_value", 20.0D);
+        double deathDecay = getConfig().getDouble("hunter.seal.death_decay", 10.0D);
+        double witnessRadius = getConfig().getDouble("hunter.event.witness_radius", 64.0D);
+        long broadcastCooldownMillis = (long) (getConfig().getDouble("hunter.event.broadcast_cooldown", 600D) * 1000L);
+        ConfigurationSection thresholdSection = getConfig().getConfigurationSection("hunter.omens.thresholds");
+        int longThreshold = thresholdSection != null ? thresholdSection.getInt("long", 2) : 2;
+        int mediumThreshold = thresholdSection != null ? thresholdSection.getInt("medium", 4) : 4;
+        int lateThreshold = thresholdSection != null ? thresholdSection.getInt("late", 5) : 5;
+
+        hunterManager = new HunterManager(this, messages, chronicleManager, sealMath,
+                sealPatchValue, deathDecay, witnessRadius, broadcastCooldownMillis,
+                longThreshold, mediumThreshold, lateThreshold, gaugeOverrides);
+        hunterManager.load();
+
+        long ritualWindow = getConfig().getLong("hunter.paradox.ritual_window", 600L);
+        double failureScale = getConfig().getDouble("hunter.paradox.failure_scale", 1.5D);
+        paradoxManager = new ParadoxManager(this, messages, chronicleManager, hunterManager, ritualWindow, failureScale);
+        hunterManager.setParadoxManager(paradoxManager);
+
         PluginManager pluginManager = getServer().getPluginManager();
         pluginManager.registerEvents(new BossListener(this, bossManager), this);
         PlayerListener playerListener = new PlayerListener(bossManager, inheritManager, aspectManager,
@@ -75,12 +125,14 @@ public final class Mythof5 extends JavaPlugin {
         pluginManager.registerEvents(playerListener, this);
         pluginManager.registerEvents(inheritManager, this);
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
+        pluginManager.registerEvents(new HunterListener(hunterManager), this);
 
         registerCommands();
 
         inheritManager.reapplyToOnlinePlayers();
         for (Player player : Bukkit.getOnlinePlayers()) {
             aspectManager.handlePlayerJoin(player);
+            hunterManager.handleJoin(player);
         }
         bossManager.initializeBossBars();
         playerListener.initializeExistingPlayers();
@@ -109,6 +161,10 @@ public final class Mythof5 extends JavaPlugin {
         }
         if (omenManager != null) {
             omenManager.shutdown();
+        }
+        if (hunterManager != null) {
+            hunterManager.save();
+            hunterManager.shutdown();
         }
 
         if (doubleJumpEnabled) {
@@ -142,6 +198,11 @@ public final class Mythof5 extends JavaPlugin {
         RelicCommand relicExecutor = new RelicCommand(relicManager, messages);
         relicCommand.setExecutor(relicExecutor);
         relicCommand.setTabCompleter(relicExecutor);
+
+        PluginCommand hunterCommand = Objects.requireNonNull(getCommand("hunter"), "Command hunter not defined in plugin.yml");
+        HunterCommand hunterExecutor = new HunterCommand(this, hunterManager, messages);
+        hunterCommand.setExecutor(hunterExecutor);
+        hunterCommand.setTabCompleter(hunterExecutor);
     }
 
     public BossManager getBossManager() {
@@ -178,6 +239,10 @@ public final class Mythof5 extends JavaPlugin {
 
     public BalanceTable getBalanceTable() {
         return balanceTable;
+    }
+
+    public HunterManager getHunterManager() {
+        return hunterManager;
     }
 
     public void broadcast(String message) {
@@ -233,6 +298,26 @@ public final class Mythof5 extends JavaPlugin {
         config.addDefault("movement.double_jump.enabled", true);
         config.addDefault("movement.double_jump.vertical_velocity", 0.9D);
         config.addDefault("movement.double_jump.forward_multiplier", 0.6D);
+        config.addDefault("hunter.release.low", 0.0052D);
+        config.addDefault("hunter.release.base", 0.1835D);
+        config.addDefault("hunter.release.slope", 0.012D);
+        config.addDefault("hunter.release.cap", 0.45D);
+        config.addDefault("hunter.release.fatigue_window_hours", 1.0D);
+        config.addDefault("hunter.release.fatigue_min", 0.7D);
+        config.addDefault("hunter.release.fatigue_max", 1.2D);
+        config.addDefault("hunter.gauge.gain.C", 7.0D);
+        config.addDefault("hunter.gauge.gain.B", 9.0D);
+        config.addDefault("hunter.gauge.gain.A", 11.0D);
+        config.addDefault("hunter.gauge.gain.S", 12.0D);
+        config.addDefault("hunter.seal.patch_value", 20.0D);
+        config.addDefault("hunter.seal.death_decay", 10.0D);
+        config.addDefault("hunter.event.witness_radius", 64.0D);
+        config.addDefault("hunter.event.broadcast_cooldown", 600D);
+        config.addDefault("hunter.omens.thresholds.long", 2);
+        config.addDefault("hunter.omens.thresholds.medium", 4);
+        config.addDefault("hunter.omens.thresholds.late", 5);
+        config.addDefault("hunter.paradox.ritual_window", 600L);
+        config.addDefault("hunter.paradox.failure_scale", 1.5D);
         config.options().copyDefaults(true);
         saveConfig();
     }

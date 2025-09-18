@@ -43,3 +43,32 @@ movement:
     enabled: true
     vertical_velocity: 0.9
     forward_multiplier: 0.6
+hunter:
+  release:
+    low: 0.0052
+    base: 0.1835
+    slope: 0.012
+    cap: 0.45
+    fatigue_window_hours: 1.0
+    fatigue_min: 0.7
+    fatigue_max: 1.2
+  gauge:
+    gain:
+      C: 7.0
+      B: 9.0
+      A: 11.0
+      S: 12.0
+  seal:
+    patch_value: 20.0
+    death_decay: 10.0
+  event:
+    witness_radius: 64.0
+    broadcast_cooldown: 600.0
+  omens:
+    thresholds:
+      long: 2
+      medium: 4
+      late: 5
+  paradox:
+    ritual_window: 600
+    failure_scale: 1.5
