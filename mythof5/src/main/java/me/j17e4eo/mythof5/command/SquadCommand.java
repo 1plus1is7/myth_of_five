@@ -65,10 +65,6 @@ public class SquadCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleCreate(Player player, String label, String[] args) {
-        if (!hasPermission(player, "myth.user.squad.create")) {
-            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 2) {
             player.sendMessage(Component.text(messages.format("commands.squad.create_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
             return;
@@ -82,10 +78,6 @@ public class SquadCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleInvite(Player player, String label, String[] args) {
-        if (!hasPermission(player, "myth.user.squad.invite")) {
-            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 2) {
             player.sendMessage(Component.text(messages.format("commands.squad.invite_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
             return;
@@ -103,10 +95,6 @@ public class SquadCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleAccept(Player player, String label, String[] args) {
-        if (!hasPermission(player, "myth.user.squad.accept")) {
-            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 2) {
             player.sendMessage(Component.text(messages.format("commands.squad.accept_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
             return;
@@ -116,31 +104,15 @@ public class SquadCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleLeave(Player player) {
-        if (!hasPermission(player, "myth.user.squad.leave")) {
-            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         squadManager.leave(player);
     }
 
     private void handleDisband(Player player) {
-        if (!hasPermission(player, "myth.user.squad.disband")) {
-            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         squadManager.disband(player);
     }
 
     private void handleStatus(Player player) {
-        if (!hasPermission(player, "myth.user.squad.status")) {
-            player.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         squadManager.sendStatus(player);
-    }
-
-    private boolean hasPermission(Player player, String permission) {
-        return player.hasPermission("myth.user.squad.*") || player.hasPermission(permission);
     }
 
     private void sendUsage(Player player, String label) {

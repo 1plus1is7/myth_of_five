@@ -25,8 +25,6 @@ import java.util.UUID;
  */
 public class SealCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ADMIN_PERMISSION = "myth.admin.seal";
-
     private final SealManager sealManager;
     private final Messages messages;
 
@@ -66,10 +64,6 @@ public class SealCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleAdmin(CommandSender sender, String[] args) {
-        if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage(messages.format("commands.common.no_permission"));
-            return;
-        }
         if (args.length == 0) {
             sender.sendMessage(messages.format("commands.seal.admin.usage"));
             return;
@@ -124,9 +118,7 @@ public class SealCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             List<String> list = new ArrayList<>();
             list.add("status");
-            if (sender.hasPermission(ADMIN_PERMISSION)) {
-                list.add("admin");
-            }
+            list.add("admin");
             return partial(list, args[0]);
         }
         if (args.length >= 2 && args[0].equalsIgnoreCase("admin")) {

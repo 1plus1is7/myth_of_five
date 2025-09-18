@@ -87,10 +87,6 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleSpawnBoss(CommandSender sender, String label, String[] args) {
-        if (!hasPermission(sender, "myth.admin.spawnboss")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 2) {
             sendUsage(sender, label);
             return;
@@ -184,18 +180,10 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleBossList(CommandSender sender) {
-        if (!hasPermission(sender, "myth.admin.bosslist")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         bossManager.sendBossList(sender);
     }
 
     private void handleEndBoss(CommandSender sender, String label, String[] args) {
-        if (!hasPermission(sender, "myth.admin.endboss")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 1) {
             sender.sendMessage(Component.text(messages.format("commands.myth.end_usage", Map.of("label", label)), NamedTextColor.RED));
             return;
@@ -216,10 +204,6 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleInherit(CommandSender sender, String[] args) {
-        if (!hasPermission(sender, "myth.admin.inherit")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 2) {
             sender.sendMessage(Component.text(messages.format("commands.admin.inherit_usage"), NamedTextColor.RED));
             return;
@@ -245,10 +229,6 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleClearInherit(CommandSender sender, String[] args) {
-        if (!hasPermission(sender, "myth.admin.inherit")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 1) {
             sender.sendMessage(Component.text(messages.format("commands.admin.clear_usage"), NamedTextColor.RED));
             return;
@@ -265,10 +245,6 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleRelic(CommandSender sender, String[] args) {
-        if (!hasPermission(sender, "myth.admin.relic")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 3) {
             sender.sendMessage(Component.text(messages.format("commands.admin.relic_usage"), NamedTextColor.RED));
             return;
@@ -325,10 +301,6 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleOmen(CommandSender sender, String[] args) {
-        if (!hasPermission(sender, "myth.admin.omen")) {
-            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
-            return;
-        }
         if (args.length < 1) {
             sender.sendMessage(Component.text(messages.format("commands.admin.omen_usage"), NamedTextColor.RED));
             return;
@@ -352,10 +324,6 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         for (String line : balanceTable.format()) {
             sender.sendMessage(line);
         }
-    }
-
-    private boolean hasPermission(CommandSender sender, String permission) {
-        return sender.hasPermission("myth.admin.*") || sender.hasPermission(permission);
     }
 
     private void sendUsage(CommandSender sender, String label) {
