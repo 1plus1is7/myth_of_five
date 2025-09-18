@@ -2,6 +2,7 @@ package me.j17e4eo.mythof5.boss;
 
 import me.j17e4eo.mythof5.Mythof5;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -31,6 +32,7 @@ public class BossManager {
 
     private final Mythof5 plugin;
     private final InheritManager inheritManager;
+    private final AspectManager aspectManager;
     private final Messages messages;
     private final Map<Integer, BossInstance> activeBosses = new HashMap<>();
     private final Map<UUID, BossInstance> bossesByEntity = new HashMap<>();
@@ -39,9 +41,10 @@ public class BossManager {
     private final double defaultArmor;
     private final String defaultName;
 
-    public BossManager(Mythof5 plugin, InheritManager inheritManager, Messages messages) {
+    public BossManager(Mythof5 plugin, InheritManager inheritManager, AspectManager aspectManager, Messages messages) {
         this.plugin = plugin;
         this.inheritManager = inheritManager;
+        this.aspectManager = aspectManager;
         this.messages = messages;
         this.defaultHp = plugin.getConfig().getDouble("boss.hp_default", 10000D);
         this.defaultArmor = plugin.getConfig().getDouble("boss.armor_default", 50D);
@@ -121,6 +124,7 @@ public class BossManager {
             plugin.getLogger().info(String.format("[Event:BOSS_DEFEATED] Boss #%d defeated by %s at %s", instance.getId(),
                     killer.getName(), stringifyLocation(location)));
             inheritManager.grantFromBoss(killer, instance.getDisplayName());
+            aspectManager.handleBossDefeat(killer, instance.getDisplayName());
         } else {
             plugin.getLogger().info(String.format("[Event:BOSS_DEFEATED] Boss #%d died without a killer at %s", instance.getId(),
                     stringifyLocation(location)));

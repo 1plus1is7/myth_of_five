@@ -12,6 +12,14 @@ commands:
     aliases: [sq]
     usage: /squad <subcommand>
     permission: myth.user.squad.*
+  goblin:
+    description: Goblin aspect commands
+    usage: /goblin <subcommand>
+    permission: myth.user.goblin
+  relic:
+    description: Relic overview commands
+    usage: /relic <subcommand>
+    permission: myth.user.relic
 permissions:
   myth.admin.*:
     description: Full access to myth admin commands
@@ -20,6 +28,9 @@ permissions:
       myth.admin.spawnboss: true
       myth.admin.bosslist: true
       myth.admin.endboss: true
+      myth.admin.inherit: true
+      myth.admin.relic: true
+      myth.admin.omen: true
   myth.admin.spawnboss:
     description: Spawn a dokkaebi boss
     default: op
@@ -28,6 +39,15 @@ permissions:
     default: op
   myth.admin.endboss:
     description: Forcefully end a boss
+    default: op
+  myth.admin.inherit:
+    description: Force assign or clear goblin inheritances
+    default: op
+  myth.admin.relic:
+    description: Grant or revoke relics
+    default: op
+  myth.admin.omen:
+    description: Trigger omen stages
     default: op
   myth.user.squad.*:
     description: Access to squad commands
@@ -56,4 +76,10 @@ permissions:
     default: true
   myth.user.squad.status:
     description: View squad status
+    default: true
+  myth.user.goblin:
+    description: Use goblin aspect commands
+    default: true
+  myth.user.relic:
+    description: Use relic commands
     default: true
