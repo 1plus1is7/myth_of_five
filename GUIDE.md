@@ -38,7 +38,7 @@
 
 ## 분대 시스템
 * `SquadManager`는 YAML에서 분대와 대기 중인 초대를 불러오고, 구성 가능한 최대 인원 제한을 적용하며, 맵 간에 멤버십 및 아군 사격(friendly fire) 메타데이터를 동기화합니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/squad/SquadManager.java†L41-L400】
-* 플레이어 명령을 통해 분대 생성, 초대, 수락, 탈퇴, 해산, 상태 조회가 가능하며, 권한 검사는 `myth.user.squad.*` 트리에 매핑되어 있습니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/SquadCommand.java†L31-L181】【F:mythof5/src/main/resources/plugin.yml†L10-L79】
+* 플레이어 명령을 통해 분대 생성, 초대, 수락, 탈퇴, 해산, 상태 조회가 가능하며, 분대 명령은 별도의 권한 검사 없이 모든 플레이어에게 개방되어 있습니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/SquadCommand.java†L31-L149】
 * `SquadListener`는 설정에서 PvP를 허용하지 않는 한 분대원 간의 아군 사격을 차단하고, 공격이 무효화되면 공격자에게 메시지를 보냅니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/listener/SquadListener.java†L21-L44】【F:mythof5/src/main/java/me/j17e4eo/mythof5/Mythof5.java†L75-L76】【F:mythof5/src/main/resources/config.yml†L38-L40】
 
 ## 연대기와 전조
@@ -49,9 +49,9 @@
 * `PlayerListener`는 접속/퇴장/사망 시 보스 바, 계승, 측면 패시브를 동기화하고, 흔적 아이템 획득 및 의식 상호작용을 측면 시스템으로 전달하며, 고블린 화염 드랍을 가로채 변신을 전환합니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/listener/PlayerListener.java†L48-L108】
 * 이 리스너는 구성 가능한 더블 점프도 구현하여, 생존/어드벤처 플레이어가 지상에 있을 때 비행을 회복하고, 이를 소비해 설정된 수직/전방 속도로 도약하며, 로켓 음향을 재생합니다. 활공/크리에이티브 모드에서는 토글이 억제됩니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/listener/PlayerListener.java†L110-L200】【F:mythof5/src/main/java/me/j17e4eo/mythof5/Mythof5.java†L239-L253】【F:mythof5/src/main/resources/config.yml†L41-L45】
 
-## 관리 도구와 권한
+## 관리 도구와 접근
 * `/myth admin`은 보스 소환/목록/종료, 계승 강제 변경, 유물 부여 또는 제거, 최근 연대기 항목 출력, 전조 트리거, 밸런스 표 참조 덤프 등의 하위 명령을 제공합니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/MythAdminCommand.java†L64-L425】
-* myth, squad, goblin, relic 기능에 대한 명령 권한은 `plugin.yml`에 선언되어 있어, 운영자가 세밀하게 제어하고 일반 플레이어에게 필요한 접근 권한을 기본으로 부여할 수 있습니다.【F:mythof5/src/main/resources/plugin.yml†L1-L85】
+* myth, squad, goblin, relic, hunter, seal 명령은 `plugin.yml`에 등록된 그대로 제공되며, 실행 시 별도의 권한 검증 없이 모든 플레이어가 하위 명령을 사용할 수 있습니다.【F:mythof5/src/main/resources/plugin.yml†L1-L24】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/MythAdminCommand.java†L63-L86】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/SquadCommand.java†L31-L149】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/GoblinCommand.java†L33-L119】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/RelicCommand.java†L28-L95】【F:mythof5/src/main/java/me/j17e4eo/mythof5/hunter/command/HunterCommand.java†L49-L119】【F:mythof5/src/main/java/me/j17e4eo/mythof5/hunter/seal/command/SealCommand.java†L36-L135】
 
 ## 밸런스 참고와 메시징
 * `BalanceTable`은 `/myth admin balance`가 빠르게 디자인을 검토할 수 있도록 목표 밸런스 지표 목록을 제공합니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/balance/BalanceTable.java†L14-L25】

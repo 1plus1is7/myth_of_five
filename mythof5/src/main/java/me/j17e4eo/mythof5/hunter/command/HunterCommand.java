@@ -36,8 +36,6 @@ import java.util.UUID;
  */
 public class HunterCommand implements CommandExecutor, TabCompleter {
 
-    private static final String ADMIN_PERMISSION = "myth.admin.hunter";
-
     private final Mythof5 plugin;
     private final HunterManager hunterManager;
     private final Messages messages;
@@ -99,10 +97,6 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
     private void handleStatus(CommandSender sender, String[] args) {
         HunterProfile profile;
         if (args.length >= 1) {
-            if (!sender.hasPermission(ADMIN_PERMISSION)) {
-                sender.sendMessage(messages.format("commands.common.no_permission"));
-                return;
-            }
             OfflinePlayer target = Bukkit.getOfflinePlayer(args[0]);
             if (target == null || (target.getUniqueId() == null && !target.hasPlayedBefore())) {
                 sender.sendMessage(messages.format("commands.common.player_not_online"));
@@ -229,10 +223,6 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(messages.format("commands.common.player_only"));
                 return;
             }
-            if (!sender.hasPermission(ADMIN_PERMISSION)) {
-                sender.sendMessage(messages.format("commands.common.no_permission"));
-                return;
-            }
             ParadoxManager manager = hunterManager.getParadoxManager();
             if (manager == null) {
                 sender.sendMessage(messages.format("hunter.error.no_paradox"));
@@ -263,10 +253,6 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleAdmin(CommandSender sender, String[] args) {
-        if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage(messages.format("commands.common.no_permission"));
-            return;
-        }
         if (args.length == 0) {
             sender.sendMessage(messages.format("hunter.usage.admin"));
             return;
@@ -379,10 +365,6 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleTest(CommandSender sender, String[] args) {
-        if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage(messages.format("commands.common.no_permission"));
-            return;
-        }
         if (args.length == 0) {
             sender.sendMessage(messages.format("hunter.usage.test"));
             return;

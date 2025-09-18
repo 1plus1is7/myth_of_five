@@ -6,102 +6,19 @@ commands:
   myth:
     description: Myth administration commands
     usage: /myth admin <subcommand>
-    permission: myth.admin.*
   squad:
     description: Squad management commands
     aliases: [sq]
     usage: /squad <subcommand>
-    permission: myth.user.squad.*
   goblin:
     description: Goblin aspect commands
     usage: /goblin <subcommand>
-    permission: myth.user.goblin
   relic:
     description: Relic overview commands
     usage: /relic <subcommand>
-    permission: myth.user.relic
   hunter:
     description: Hunter route commands
     usage: /hunter <subcommand>
-    permission: myth.user.hunter
   seal:
     description: Weapon sealing interface
     usage: /seal
-    permission: myth.user.seal
-permissions:
-  myth.admin.*:
-    description: Full access to myth admin commands
-    default: op
-    children:
-      myth.admin.spawnboss: true
-      myth.admin.bosslist: true
-      myth.admin.endboss: true
-      myth.admin.inherit: true
-      myth.admin.relic: true
-      myth.admin.omen: true
-      myth.admin.hunter: true
-      myth.admin.seal: true
-  myth.admin.spawnboss:
-    description: Spawn a dokkaebi boss
-    default: op
-  myth.admin.bosslist:
-    description: View active bosses
-    default: op
-  myth.admin.endboss:
-    description: Forcefully end a boss
-    default: op
-  myth.admin.inherit:
-    description: Force assign or clear goblin inheritances
-    default: op
-  myth.admin.relic:
-    description: Grant or revoke relics
-    default: op
-  myth.admin.omen:
-    description: Trigger omen stages
-    default: op
-  myth.admin.hunter:
-    description: Configure hunter systems
-    default: op
-  myth.user.squad.*:
-    description: Access to squad commands
-    default: true
-    children:
-      myth.user.squad.create: true
-      myth.user.squad.invite: true
-      myth.user.squad.accept: true
-      myth.user.squad.leave: true
-      myth.user.squad.disband: true
-      myth.user.squad.status: true
-  myth.user.squad.create:
-    description: Create squads
-    default: true
-  myth.user.squad.invite:
-    description: Invite players to squads
-    default: true
-  myth.user.squad.accept:
-    description: Accept squad invitations
-    default: true
-  myth.user.squad.leave:
-    description: Leave squads
-    default: true
-  myth.user.squad.disband:
-    description: Disband squads
-    default: true
-  myth.user.squad.status:
-    description: View squad status
-    default: true
-  myth.user.goblin:
-    description: Use goblin aspect commands
-    default: true
-  myth.user.relic:
-    description: Use relic commands
-    default: true
-  myth.user.hunter:
-    description: Use hunter commands
-    default: true
-  myth.user.seal:
-    description: Use weapon sealing commands
-    default: true
-  myth.admin.seal:
-    description: Manage weapon seal data
-    default: op
