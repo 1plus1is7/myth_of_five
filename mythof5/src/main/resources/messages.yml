@@ -37,6 +37,9 @@ commands:
     activated: "도깨비화가 발동되었습니다!"
     deactivated: "도깨비화를 해제했습니다."
     not_inheritor: "도깨비의 힘을 가진 플레이어만 사용할 수 있습니다."
+    select_prompt: "변신할 도깨비의 힘을 선택하세요."
+    select_hint: "좌클릭하여 변신합니다."
+    select_cancelled: "변신이 취소되었습니다."
   squad:
     usage:
       - "{label} create <이름>"
