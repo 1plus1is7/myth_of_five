@@ -1,13 +1,20 @@
 package me.j17e4eo.mythof5;
 
+import me.j17e4eo.mythof5.balance.BalanceTable;
 import me.j17e4eo.mythof5.boss.BossManager;
+import me.j17e4eo.mythof5.chronicle.ChronicleManager;
+import me.j17e4eo.mythof5.command.GoblinCommand;
 import me.j17e4eo.mythof5.command.MythAdminCommand;
+import me.j17e4eo.mythof5.command.RelicCommand;
 import me.j17e4eo.mythof5.command.SquadCommand;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import me.j17e4eo.mythof5.listener.BossListener;
 import me.j17e4eo.mythof5.listener.PlayerListener;
 import me.j17e4eo.mythof5.listener.SquadListener;
+import me.j17e4eo.mythof5.omens.OmenManager;
+import me.j17e4eo.mythof5.relic.RelicManager;
 import me.j17e4eo.mythof5.squad.SquadManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -28,6 +35,11 @@ public final class Mythof5 extends JavaPlugin {
     private InheritManager inheritManager;
     private SquadManager squadManager;
     private Messages messages;
+    private ChronicleManager chronicleManager;
+    private RelicManager relicManager;
+    private AspectManager aspectManager;
+    private OmenManager omenManager;
+    private BalanceTable balanceTable;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -39,17 +51,26 @@ public final class Mythof5 extends JavaPlugin {
         loadDoubleJumpSettings();
 
         messages = new Messages(this);
+        chronicleManager = new ChronicleManager(this, messages);
+        chronicleManager.load();
+        relicManager = new RelicManager(this, messages, chronicleManager);
+        relicManager.load();
+        omenManager = new OmenManager(this, messages, chronicleManager);
+        balanceTable = new BalanceTable();
 
         inheritManager = new InheritManager(this, messages);
         inheritManager.load();
 
-        bossManager = new BossManager(this, inheritManager, messages);
+        aspectManager = new AspectManager(this, messages, chronicleManager, relicManager, omenManager);
+        aspectManager.load();
+
+        bossManager = new BossManager(this, inheritManager, aspectManager, messages);
         squadManager = new SquadManager(this, messages);
         squadManager.load();
 
         PluginManager pluginManager = getServer().getPluginManager();
         pluginManager.registerEvents(new BossListener(this, bossManager), this);
-        PlayerListener playerListener = new PlayerListener(bossManager, inheritManager,
+        PlayerListener playerListener = new PlayerListener(bossManager, inheritManager, aspectManager,
                 doubleJumpEnabled, doubleJumpVerticalVelocity, doubleJumpForwardMultiplier);
         pluginManager.registerEvents(playerListener, this);
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
@@ -57,6 +78,9 @@ public final class Mythof5 extends JavaPlugin {
         registerCommands();
 
         inheritManager.reapplyToOnlinePlayers();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            aspectManager.handlePlayerJoin(player);
+        }
         bossManager.initializeBossBars();
         playerListener.initializeExistingPlayers();
     }
@@ -69,9 +93,21 @@ public final class Mythof5 extends JavaPlugin {
         if (inheritManager != null) {
             inheritManager.save();
         }
+        if (aspectManager != null) {
+            aspectManager.save();
+        }
+        if (relicManager != null) {
+            relicManager.save();
+        }
+        if (chronicleManager != null) {
+            chronicleManager.save();
+        }
         if (squadManager != null) {
             squadManager.save();
             squadManager.saveInvites();
+        }
+        if (omenManager != null) {
+            omenManager.shutdown();
         }
 
         if (doubleJumpEnabled) {
@@ -86,7 +122,8 @@ public final class Mythof5 extends JavaPlugin {
 
     private void registerCommands() {
         PluginCommand mythCommand = Objects.requireNonNull(getCommand("myth"), "Command myth not defined in plugin.yml");
-        MythAdminCommand mythAdminCommand = new MythAdminCommand(this, bossManager, messages);
+        MythAdminCommand mythAdminCommand = new MythAdminCommand(this, bossManager, inheritManager, aspectManager,
+                relicManager, chronicleManager, omenManager, balanceTable, messages);
         mythCommand.setExecutor(mythAdminCommand);
         mythCommand.setTabCompleter(mythAdminCommand);
 
@@ -95,6 +132,15 @@ public final class Mythof5 extends JavaPlugin {
         squadCommand.setExecutor(squadExecutor);
         squadCommand.setTabCompleter(squadExecutor);
 
+        PluginCommand goblinCommand = Objects.requireNonNull(getCommand("goblin"), "Command goblin not defined in plugin.yml");
+        GoblinCommand goblinExecutor = new GoblinCommand(aspectManager, messages);
+        goblinCommand.setExecutor(goblinExecutor);
+        goblinCommand.setTabCompleter(goblinExecutor);
+
+        PluginCommand relicCommand = Objects.requireNonNull(getCommand("relic"), "Command relic not defined in plugin.yml");
+        RelicCommand relicExecutor = new RelicCommand(relicManager, messages);
+        relicCommand.setExecutor(relicExecutor);
+        relicCommand.setTabCompleter(relicExecutor);
     }
 
     public BossManager getBossManager() {
@@ -111,6 +157,26 @@ public final class Mythof5 extends JavaPlugin {
 
     public Messages getMessages() {
         return messages;
+    }
+
+    public ChronicleManager getChronicleManager() {
+        return chronicleManager;
+    }
+
+    public RelicManager getRelicManager() {
+        return relicManager;
+    }
+
+    public AspectManager getAspectManager() {
+        return aspectManager;
+    }
+
+    public OmenManager getOmenManager() {
+        return omenManager;
+    }
+
+    public BalanceTable getBalanceTable() {
+        return balanceTable;
     }
 
     public void broadcast(String message) {
@@ -135,6 +201,16 @@ public final class Mythof5 extends JavaPlugin {
         config.addDefault("inherit.announce", true);
         config.addDefault("inherit.transformation.scale_multiplier", 2.0D);
         config.addDefault("inherit.transformation.attack_bonus", 6.0D);
+        config.addDefault("goblin.triggers.power.boss_keywords", List.of("태초의 도깨비"));
+        config.addDefault("goblin.triggers.speed.trace_items", List.of("SNOWBALL", "GOAT_HORN"));
+        config.addDefault("goblin.triggers.mischief.contract_items", List.of("WRITTEN_BOOK", "WRITABLE_BOOK"));
+        config.addDefault("goblin.triggers.mischief.contract_keywords", List.of("계약"));
+        config.addDefault("goblin.triggers.flame.ritual_blocks", List.of("CAMPFIRE", "SOUL_CAMPFIRE"));
+        config.addDefault("goblin.triggers.flame.catalyst", "BLAZE_POWDER");
+        config.addDefault("goblin.triggers.forge.catalyst", "NETHERITE_INGOT");
+        config.addDefault("goblin.triggers.forge.fuel", "BLAZE_ROD");
+        config.addDefault("goblin.triggers.forge.station_blocks", List.of("SMITHING_TABLE", "ANVIL"));
+        config.addDefault("goblin.triggers.forge.radius", 4);
         config.addDefault("squad.max_members", 5);
         config.addDefault("squad.friendly_fire", false);
         config.addDefault("movement.double_jump.enabled", true);

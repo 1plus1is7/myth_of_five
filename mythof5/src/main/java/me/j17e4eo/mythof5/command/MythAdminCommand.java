@@ -1,9 +1,18 @@
 package me.j17e4eo.mythof5.command;
 
 import me.j17e4eo.mythof5.Mythof5;
+import me.j17e4eo.mythof5.balance.BalanceTable;
 import me.j17e4eo.mythof5.boss.BossInstance;
 import me.j17e4eo.mythof5.boss.BossManager;
+import me.j17e4eo.mythof5.chronicle.ChronicleManager;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.inherit.AspectManager;
+import me.j17e4eo.mythof5.inherit.InheritManager;
+import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
+import me.j17e4eo.mythof5.omens.OmenManager;
+import me.j17e4eo.mythof5.omens.OmenStage;
+import me.j17e4eo.mythof5.relic.RelicManager;
+import me.j17e4eo.mythof5.relic.RelicType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -21,27 +30,39 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class MythAdminCommand implements CommandExecutor, TabCompleter {
 
     private final Mythof5 plugin;
     private final BossManager bossManager;
+    private final InheritManager inheritManager;
+    private final AspectManager aspectManager;
+    private final RelicManager relicManager;
+    private final ChronicleManager chronicleManager;
+    private final OmenManager omenManager;
+    private final BalanceTable balanceTable;
     private final Messages messages;
 
-    public MythAdminCommand(Mythof5 plugin, BossManager bossManager, Messages messages) {
+    public MythAdminCommand(Mythof5 plugin, BossManager bossManager, InheritManager inheritManager,
+                            AspectManager aspectManager, RelicManager relicManager,
+                            ChronicleManager chronicleManager, OmenManager omenManager,
+                            BalanceTable balanceTable, Messages messages) {
         this.plugin = plugin;
         this.bossManager = bossManager;
+        this.inheritManager = inheritManager;
+        this.aspectManager = aspectManager;
+        this.relicManager = relicManager;
+        this.chronicleManager = chronicleManager;
+        this.omenManager = omenManager;
+        this.balanceTable = balanceTable;
         this.messages = messages;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0) {
-            sendUsage(sender, label);
-            return true;
-        }
-        if (!args[0].equalsIgnoreCase("admin")) {
+        if (args.length == 0 || !args[0].equalsIgnoreCase("admin")) {
             sendUsage(sender, label);
             return true;
         }
@@ -50,20 +71,19 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         String sub = args[1].toLowerCase(Locale.ROOT);
-        switch (sub) {
-            case "spawnboss":
-                handleSpawnBoss(sender, label, Arrays.copyOfRange(args, 2, args.length));
-                return true;
-            case "bosslist":
-                handleBossList(sender);
-                return true;
-            case "endboss":
-                handleEndBoss(sender, label, Arrays.copyOfRange(args, 2, args.length));
-                return true;
-            default:
-                sendUsage(sender, label);
-                return true;
-        }
+        String[] tail = Arrays.copyOfRange(args, 2, args.length);
+        return switch (sub) {
+            case "spawnboss" -> { handleSpawnBoss(sender, label, tail); yield true; }
+            case "bosslist" -> { handleBossList(sender); yield true; }
+            case "endboss" -> { handleEndBoss(sender, label, tail); yield true; }
+            case "inherit" -> { handleInherit(sender, tail); yield true; }
+            case "clearinherit" -> { handleClearInherit(sender, tail); yield true; }
+            case "relic" -> { handleRelic(sender, tail); yield true; }
+            case "chronicle" -> { handleChronicle(sender, tail); yield true; }
+            case "omen" -> { handleOmen(sender, tail); yield true; }
+            case "balance" -> { handleBalance(sender); yield true; }
+            default -> { sendUsage(sender, label); yield true; }
+        };
     }
 
     private void handleSpawnBoss(CommandSender sender, String label, String[] args) {
@@ -141,7 +161,8 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Component.text(messages.format("commands.myth.console_requires_location"), NamedTextColor.RED));
                 return;
             }
-            location = new Location(player.getWorld(), x != null ? x : player.getLocation().getX(), y != null ? y : player.getLocation().getY(), z != null ? z : player.getLocation().getZ());
+            location = new Location(player.getWorld(), x != null ? x : player.getLocation().getX(),
+                    y != null ? y : player.getLocation().getY(), z != null ? z : player.getLocation().getZ());
         } else if (sender instanceof Player player) {
             location = player.getLocation();
         } else {
@@ -154,7 +175,7 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         BossInstance instance = bossManager.spawnBoss(entityType, resolvedName, hp, armor, location);
-        sender.sendMessage(Component.text(messages.format("commands.myth.spawn_success", java.util.Map.of(
+        sender.sendMessage(Component.text(messages.format("commands.myth.spawn_success", Map.of(
                 "id", String.valueOf(instance.getId()),
                 "location", formatLocation(instance.getEntity().getLocation()),
                 "type", entityType.name(),
@@ -176,7 +197,7 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 1) {
-            sender.sendMessage(Component.text(messages.format("commands.myth.end_usage", java.util.Map.of("label", label)), NamedTextColor.RED));
+            sender.sendMessage(Component.text(messages.format("commands.myth.end_usage", Map.of("label", label)), NamedTextColor.RED));
             return;
         }
         int id;
@@ -194,19 +215,159 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private void handleInherit(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "myth.admin.inherit")) {
+            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
+            return;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(Component.text(messages.format("commands.admin.inherit_usage"), NamedTextColor.RED));
+            return;
+        }
+        GoblinAspect aspect = GoblinAspect.fromKey(args[0]);
+        if (aspect == null) {
+            sender.sendMessage(Component.text(messages.format("goblin.aspect.unknown"), NamedTextColor.RED));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Component.text(messages.format("commands.common.player_not_online"), NamedTextColor.RED));
+            return;
+        }
+        aspectManager.setInheritor(aspect, target, true, messages.format("chronicle.inherit.force", Map.of(
+                "player", target.getName(),
+                "aspect", aspect.getDisplayName()
+        )));
+        sender.sendMessage(Component.text(messages.format("commands.admin.inherit_success", Map.of(
+                "player", target.getName(),
+                "aspect", aspect.getDisplayName()
+        )), NamedTextColor.GREEN));
+    }
+
+    private void handleClearInherit(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "myth.admin.inherit")) {
+            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
+            return;
+        }
+        if (args.length < 1) {
+            sender.sendMessage(Component.text(messages.format("commands.admin.clear_usage"), NamedTextColor.RED));
+            return;
+        }
+        GoblinAspect aspect = GoblinAspect.fromKey(args[0]);
+        if (aspect == null) {
+            sender.sendMessage(Component.text(messages.format("goblin.aspect.unknown"), NamedTextColor.RED));
+            return;
+        }
+        aspectManager.clearInheritor(aspect, true, aspectManager.getInheritorName(aspect));
+        sender.sendMessage(Component.text(messages.format("commands.admin.clear_success", Map.of(
+                "aspect", aspect.getDisplayName()
+        )), NamedTextColor.GREEN));
+    }
+
+    private void handleRelic(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "myth.admin.relic")) {
+            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(Component.text(messages.format("commands.admin.relic_usage"), NamedTextColor.RED));
+            return;
+        }
+        String action = args[0].toLowerCase(Locale.ROOT);
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Component.text(messages.format("commands.common.player_not_online"), NamedTextColor.RED));
+            return;
+        }
+        RelicType type = RelicType.fromKey(args[2]);
+        if (type == null) {
+            sender.sendMessage(Component.text(messages.format("relic.unknown"), NamedTextColor.RED));
+            return;
+        }
+        switch (action) {
+            case "give" -> {
+                boolean granted = relicManager.grantRelic(target, type, true);
+                if (!granted) {
+                    sender.sendMessage(Component.text(messages.format("commands.admin.relic_duplicate"), NamedTextColor.YELLOW));
+                } else {
+                    sender.sendMessage(Component.text(messages.format("commands.admin.relic_grant", Map.of(
+                            "player", target.getName(),
+                            "relic", type.getDisplayName()
+                    )), NamedTextColor.GREEN));
+                }
+            }
+            case "remove" -> {
+                boolean removed = relicManager.removeRelic(target, type);
+                if (removed) {
+                    sender.sendMessage(Component.text(messages.format("commands.admin.relic_removed", Map.of(
+                            "player", target.getName(),
+                            "relic", type.getDisplayName()
+                    )), NamedTextColor.GREEN));
+                } else {
+                    sender.sendMessage(Component.text(messages.format("commands.admin.relic_not_owned"), NamedTextColor.RED));
+                }
+            }
+            default -> sender.sendMessage(Component.text(messages.format("commands.admin.relic_usage"), NamedTextColor.RED));
+        }
+    }
+
+    private void handleChronicle(CommandSender sender, String[] args) {
+        int count = 5;
+        if (args.length > 0) {
+            try {
+                count = Math.max(1, Integer.parseInt(args[0]));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        for (String line : chronicleManager.formatRecent(count)) {
+            sender.sendMessage(line);
+        }
+    }
+
+    private void handleOmen(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "myth.admin.omen")) {
+            sender.sendMessage(Component.text(messages.format("commands.common.no_permission"), NamedTextColor.RED));
+            return;
+        }
+        if (args.length < 1) {
+            sender.sendMessage(Component.text(messages.format("commands.admin.omen_usage"), NamedTextColor.RED));
+            return;
+        }
+        OmenStage stage;
+        try {
+            stage = OmenStage.valueOf(args[0].toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            sender.sendMessage(Component.text(messages.format("commands.admin.omen_unknown"), NamedTextColor.RED));
+            return;
+        }
+        String reason = args.length > 1 ? String.join(" ", Arrays.copyOfRange(args, 1, args.length)) : messages.format("omen.unknown_reason");
+        omenManager.trigger(stage, reason);
+        sender.sendMessage(Component.text(messages.format("commands.admin.omen_triggered", Map.of(
+                "stage", stage.name(),
+                "reason", reason
+        )), NamedTextColor.GOLD));
+    }
+
+    private void handleBalance(CommandSender sender) {
+        for (String line : balanceTable.format()) {
+            sender.sendMessage(line);
+        }
+    }
+
     private boolean hasPermission(CommandSender sender, String permission) {
         return sender.hasPermission("myth.admin.*") || sender.hasPermission(permission);
     }
 
     private void sendUsage(CommandSender sender, String label) {
-        sender.sendMessage(Component.text(messages.format("commands.common.usage_header"), NamedTextColor.GOLD));
-        for (String line : messages.formatList("commands.myth.usage", java.util.Map.of("label", label))) {
-            sender.sendMessage(Component.text("/" + line, NamedTextColor.GRAY));
+        for (String line : messages.formatList("commands.admin.usage", Map.of("label", "/" + label))) {
+            sender.sendMessage(Component.text(line, NamedTextColor.GRAY));
         }
     }
 
     private String formatLocation(Location location) {
-        return String.format("%s(%.1f, %.1f, %.1f)", location.getWorld() != null ? location.getWorld().getName() : "unknown", location.getX(), location.getY(), location.getZ());
+        return String.format("%s(%.1f, %.1f, %.1f)",
+                location.getWorld() != null ? location.getWorld().getName() : "unknown",
+                location.getX(), location.getY(), location.getZ());
     }
 
     @Override
@@ -214,57 +375,53 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             return Collections.singletonList("admin");
         }
-        if (!args[0].equalsIgnoreCase("admin")) {
-            return Collections.emptyList();
-        }
         if (args.length == 2) {
-            return Arrays.asList("spawnboss", "bosslist", "endboss");
+            return List.of("spawnboss", "bosslist", "endboss", "inherit", "clearinherit", "relic", "chronicle", "omen", "balance");
         }
         String sub = args[1].toLowerCase(Locale.ROOT);
         switch (sub) {
-            case "spawnboss":
+            case "spawnboss" -> {
                 if (args.length == 3) {
-                    return Arrays.stream(EntityType.values())
-                            .filter(EntityType::isAlive)
-                            .map(type -> type.name().toLowerCase(Locale.ROOT))
-                            .collect(Collectors.toList());
+                    return Arrays.stream(EntityType.values()).map(Enum::name).collect(Collectors.toList());
+                }
+            }
+            case "inherit", "clearinherit" -> {
+                if (args.length == 3) {
+                    List<String> options = new ArrayList<>();
+                    for (GoblinAspect aspect : GoblinAspect.values()) {
+                        options.add(aspect.getKey());
+                    }
+                    return options;
+                }
+                if (args.length == 4 && sub.equals("inherit")) {
+                    return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
+                }
+            }
+            case "relic" -> {
+                if (args.length == 3) {
+                    return List.of("give", "remove");
                 }
                 if (args.length == 4) {
-                    return Collections.singletonList(plugin.getConfig().getString("boss.name", "도깨비"));
+                    return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
                 }
                 if (args.length == 5) {
-                    return Collections.singletonList(String.valueOf(plugin.getConfig().getDouble("boss.hp_default", 10000D)));
-                }
-                if (args.length == 6) {
-                    return Collections.singletonList(String.valueOf(plugin.getConfig().getDouble("boss.armor_default", 50D)));
-                }
-                if (args.length == 7) {
-                    return Bukkit.getWorlds().stream().map(World::getName).collect(Collectors.toList());
-                }
-                if (args.length >= 8 && args.length <= 10 && sender instanceof Player player) {
-                    Location loc = player.getLocation();
-                    if (args.length == 8) {
-                        return Collections.singletonList(String.format(Locale.ROOT, "%.1f", loc.getX()));
+                    List<String> keys = new ArrayList<>();
+                    for (RelicType type : RelicType.values()) {
+                        keys.add(type.getKey());
                     }
-                    if (args.length == 9) {
-                        return Collections.singletonList(String.format(Locale.ROOT, "%.1f", loc.getY()));
-                    }
-                    if (args.length == 10) {
-                        return Collections.singletonList(String.format(Locale.ROOT, "%.1f", loc.getZ()));
-                    }
+                    return keys;
                 }
-                return Collections.emptyList();
-            case "endboss":
+            }
+            case "omen" -> {
                 if (args.length == 3) {
-                    List<String> ids = new ArrayList<>();
-                    for (BossInstance instance : bossManager.getActiveBosses()) {
-                        ids.add(String.valueOf(instance.getId()));
+                    List<String> keys = new ArrayList<>();
+                    for (OmenStage stage : OmenStage.values()) {
+                        keys.add(stage.name());
                     }
-                    return ids;
+                    return keys;
                 }
-                return Collections.emptyList();
-            default:
-                return Collections.emptyList();
+            }
         }
+        return Collections.emptyList();
     }
 }

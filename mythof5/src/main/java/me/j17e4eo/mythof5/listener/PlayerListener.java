@@ -1,6 +1,7 @@
 package me.j17e4eo.mythof5.listener;
 
 import me.j17e4eo.mythof5.boss.BossManager;
+import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -8,9 +9,12 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -18,21 +22,24 @@ import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.util.Vector;
 
 public class PlayerListener implements Listener {
 
     private final BossManager bossManager;
     private final InheritManager inheritManager;
+    private final AspectManager aspectManager;
     private final boolean doubleJumpEnabled;
     private final double doubleJumpVerticalVelocity;
     private final double doubleJumpForwardMultiplier;
 
-    public PlayerListener(BossManager bossManager, InheritManager inheritManager,
+    public PlayerListener(BossManager bossManager, InheritManager inheritManager, AspectManager aspectManager,
                           boolean doubleJumpEnabled, double doubleJumpVerticalVelocity,
                           double doubleJumpForwardMultiplier) {
         this.bossManager = bossManager;
         this.inheritManager = inheritManager;
+        this.aspectManager = aspectManager;
         this.doubleJumpEnabled = doubleJumpEnabled;
         this.doubleJumpVerticalVelocity = doubleJumpVerticalVelocity;
         this.doubleJumpForwardMultiplier = doubleJumpForwardMultiplier;
@@ -43,22 +50,33 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         bossManager.handlePlayerJoin(player);
         inheritManager.handlePlayerJoin(player);
+        aspectManager.handlePlayerJoin(player);
         initializeDoubleJump(player);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        inheritManager.handlePlayerQuit(event.getPlayer());
+        Player player = event.getPlayer();
+        inheritManager.handlePlayerQuit(player);
+        aspectManager.handlePlayerQuit(player);
     }
 
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
         inheritManager.handleDeath(event);
+        aspectManager.handleDeath(event);
     }
 
     @EventHandler
     public void onDrop(PlayerDropItemEvent event) {
         inheritManager.handleGoblinFlameDrop(event);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onItemPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            aspectManager.handleTracePickup(player, event.getItem().getItemStack());
+        }
     }
 
     @EventHandler
@@ -73,6 +91,20 @@ public class PlayerListener implements Listener {
         if (inheritManager.containsGoblinFlame(event.getInventory().getMatrix())) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+        if (event.getClickedBlock() == null) {
+            return;
+        }
+        aspectManager.handleEmberRitual(event.getPlayer(), event.getClickedBlock());
     }
 
     @EventHandler

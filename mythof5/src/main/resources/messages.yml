@@ -3,11 +3,18 @@ commands:
     no_permission: "권한이 없습니다."
     player_only: "플레이어만 사용 가능한 명령어입니다."
     usage_header: "사용법:"
+    player_not_online: "해당 플레이어는 온라인이 아닙니다."
   myth:
     usage:
       - "{label} admin spawnboss <엔티티타입> <이름> [hp] [armor] [world] [x y z]"
       - "{label} admin bosslist"
       - "{label} admin endboss <bossId>"
+      - "{label} admin inherit <갈래> <플레이어>"
+      - "{label} admin clearinherit <갈래>"
+      - "{label} admin relic <give|remove> <플레이어> <설화>"
+      - "{label} admin chronicle [개수]"
+      - "{label} admin omen <단계> [사유]"
+      - "{label} admin balance"
     invalid_entity: "지원하지 않는 엔티티 타입입니다."
     entity_not_living: "해당 엔티티 타입은 보스로 사용할 수 없습니다."
     invalid_health: "hp 값은 1 이상이어야 합니다."
@@ -74,9 +81,190 @@ broadcast:
   squad_joined: "[방송] {player}가 부대 {squad}에 합류했습니다."
   squad_left: "[방송] {player}가 부대 {squad}에서 탈퇴했습니다."
   squad_disbanded: "[방송] 부대 {squad}이(가) 해산되었습니다."
+  goblin_inherit: "[방송] {player}가 {aspect}의 힘을 계승했다!"
 inherit:
   previous_replaced: "도깨비의 힘이 다른 계승자에게 이전되었습니다."
   broadcast:
     gain: "[방송] {player}가 {boss}를 쓰러뜨리고 힘을 계승했다!"
     transfer: "[방송] {killer}가 {victim}을 처치하고 힘을 차지했다!"
     loss: "[방송] {player}가 쓰러져 도깨비의 힘이 사라졌다."
+goblin:
+  usage:
+    - "{label} info"
+    - "{label} skills [갈래]"
+    - "{label} skill <스킬코드>"
+    - "{label} progress"
+    - "{label} share <갈래> <플레이어>"
+    - "{label} reclaim <갈래> <플레이어>"
+    - "{label} contract"
+    - "{label} forge"
+    - "{label} list"
+  skill:
+    no_target: "표식으로 지정할 대상을 찾지 못했습니다."
+    passive: "패시브 스킬은 명령어로 사용할 수 없습니다."
+    cooldown: "아직 식지 않았습니다! 남은 시간: {time}"
+    unknown: "해당 스킬은 존재하지 않습니다."
+  skills:
+    header: "===== 도깨비 스킬 사전 ====="
+    aspect: "• {aspect} (코드: {key})"
+    entry:
+      active: "  - {name} ({code}) [쿨타임 {cooldown}] : {desc}"
+      utility: "  - {name} ({code}) [유틸 {cooldown}] : {desc}"
+      passive: "  - {name} ({code}) [패시브] : {desc}"
+  info:
+    header: "===== 계승한 도깨비 목록 ====="
+    none: "당신에게 속한 도깨비의 힘이 없습니다."
+    aspect: "• {aspect} ({personality}) - 획득법: {acquire}"
+    skill:
+      active: "  - {name} ({code}) : {desc}"
+      passive: "  - {name} [패시브] : {desc}"
+  aspect:
+    unknown: "알 수 없는 도깨비 갈래입니다."
+    not_holder: "해당 도깨비의 계승자가 아니어서 분배할 수 없습니다."
+  share:
+    success: "{player}에게 {aspect}의 힘 일부를 나누었습니다."
+    received: "{player}가 {aspect}의 힘을 나누어 주었습니다."
+    duplicate: "이미 힘을 나누어 준 상태입니다."
+  reclaim:
+    success: "{player}에게서 {aspect}의 힘을 회수했습니다."
+    notice: "{aspect}의 힘이 회수되었습니다."
+    missing: "해당 플레이어는 힘을 분배받지 않았습니다."
+  list:
+    entry: "{aspect} - 계승자: {holder}"
+    none: "아직 계승자가 없다"
+  passive:
+    scent: "주변 기척 {count}건이 감지되었다."
+  progress:
+    header: "===== 다섯 갈래 진행도 ====="
+    power:
+      available: "힘의 도깨비: 현신을 쓰러뜨릴 계승자를 기다리고 있다."
+      self: "힘의 도깨비: 너의 주먹에 오만한 힘이 깃들어 있다."
+      holder: "힘의 도깨비: {player}가 현신을 격파하여 힘을 쥐었다."
+    speed:
+      none: "속도의 도깨비: {eye}와 {horn} 흔적을 모두 모아야 한다."
+      partial_eye: "속도의 도깨비: 눈 조각은 모았다. 이제 {horn}이 필요하다."
+      partial_horn: "속도의 도깨비: 뿔 조각은 모았다. 이제 {eye}가 필요하다."
+      ready: "속도의 도깨비: 두 흔적이 공명한다! 힘이 곧 응답할 것이다."
+      self: "속도의 도깨비: 너의 발걸음이 추격의 흔적을 따라 달린다."
+      holder: "속도의 도깨비: {player}가 흔적을 모아 권능을 얻었다."
+    mischief:
+      need_item: "교란의 도깨비: {items}을 손에 쥐고 계약서를 준비해야 한다."
+      need_keyword: "교란의 도깨비: 계약서에 {keywords}라는 약속을 새겨야 한다."
+      ready: "교란의 도깨비: 서약이 완성되었다. /goblin contract 로 서명하라."
+      self: "교란의 도깨비: 이미 네가 계약을 체결했다."
+      holder: "교란의 도깨비: {player}가 계약을 독점하고 있다."
+    flame:
+      need_item: "정기의 도깨비: {item}을 손에 쥐고 의식을 준비하라."
+      ready: "정기의 도깨비: {blocks}에 불씨를 흩뿌려 의식을 치르라."
+      self: "정기의 도깨비: 네 불씨가 들판을 밝힌다."
+      holder: "정기의 도깨비: {player}가 불씨 의례를 완수했다."
+    forge:
+      need_catalyst: "대장장이 도깨비: {item}이 없으면 의식을 시작할 수 없다."
+      need_fuel: "대장장이 도깨비: {item}을 더해 불을 지펴야 한다."
+      need_station: "대장장이 도깨비: {blocks} 근처의 공방에서 의식을 열어라."
+      ready: "대장장이 도깨비: 모든 재료가 모였다. /goblin forge 로 의식을 진행하라."
+      self: "대장장이 도깨비: 네 망치가 전설을 빚고 있다."
+      holder: "대장장이 도깨비: {player}가 장인의 불씨를 붙잡았다."
+  contract:
+    require_item: "계약을 맺으려면 {items}을 손에 쥐고 있어야 한다."
+    require_keyword: "계약서에 {keywords}라는 문구를 새겨야 한다."
+    taken: "{player}가 이미 교란의 도깨비와 계약을 맺었다."
+    already_holder: "이미 교란의 도깨비와 계약한 상태다."
+    success: "{aspect}와의 계약이 성립했다!"
+  ritual:
+    speed:
+      collect:
+        eye: "눈 조각의 흔적({item})을 챙겼다."
+        horn: "뿔 조각의 흔적({item})을 챙겼다."
+      progress: "흔적 {current}/{total} 조각이 모였다."
+      complete: "두 흔적이 공명하며 속도의 도깨비가 모습을 드러낸다!"
+    flame:
+      require_item: "불씨 의례에는 {item}이 필요하다."
+      success: "불씨가 타올라 정기의 도깨비가 응답했다!"
+    forge:
+      already: "대장장이 도깨비의 힘은 이미 네 것이다."
+      taken: "{player}가 이미 대장장이 도깨비를 모셨다."
+      require_catalyst: "{item}이 없이는 의식이 진행되지 않는다."
+      require_fuel: "{item}으로 화력을 더해야 한다."
+      require_station: "{blocks} 근처에서만 의식을 치를 수 있다."
+      success: "불과 쇠가 어우러지며 대장장이 도깨비가 손을 내민다!"
+  material:
+    BLAZE_POWDER: "블레이즈 파우더"
+    NETHERITE_INGOT: "네더라이트 주괴"
+    BLAZE_ROD: "블레이즈 막대"
+    SNOWBALL: "눈 조각"
+    GOAT_HORN: "뿔 조각"
+    WRITTEN_BOOK: "서명된 책"
+    WRITABLE_BOOK: "책과 깃펜"
+    CAMPFIRE: "캠프파이어"
+    SOUL_CAMPFIRE: "푸른 캠프파이어"
+    SMITHING_TABLE: "대장장이 작업대"
+    ANVIL: "모루"
+relic:
+  usage:
+    - "{label} list"
+    - "{label} fusions"
+  obtain:
+    self: "새 설화 '{relic}'을(를) 발견했다! 효과: {effect}"
+    broadcast: "[방송] {player}가 설화 '{relic}'을(를) 획득했다!"
+  fusion:
+    self: "설화가 융합되어 '{relic}'이(가) 깨어났다!"
+    broadcast: "[방송] {player}가 설화를 합쳐 '{relic}'을(를) 만들어냈다!"
+    header: "=== 설화 융합 목록 ==="
+    entry: "{ingredients} → {result} ({desc})"
+    none: "알려진 설화 융합이 없습니다."
+  none: "보유한 설화가 없습니다."
+  unknown: "알 수 없는 설화입니다."
+chronicle:
+  empty: "아직 연대기에 기록된 사건이 없다."
+  default:
+    inherit: "누군가 힘을 계승하였도다."
+    loss: "누군가 쓰러져 힘이 흩어졌도다."
+    share: "힘이 갈라져 나누어졌도다."
+    skill: "어떤 기술이 밤하늘을 가르렀도다."
+    relic_gain: "작은 설화 하나가 새로이 깃들었도다."
+    relic_fusion: "설화가 합쳐져 기묘한 기운이 솟았도다."
+    omen: "세상에 전조가 일어났도다."
+  inherit:
+    transfer: "{killer}, {victim}을 꺾고 {aspect}의 힘을 차지하였도다."
+    obtain: "{player}, {aspect}의 힘을 얻기 위해 {method}를 이루었도다."
+    force: "{player}, 명에 따라 {aspect}의 힘을 이어받았도다."
+    loss: "{player}, {aspect}의 힘을 잃고 허공으로 사라졌도다."
+    share: "{player}, {target}에게 {aspect}의 불씨를 떼어주었도다."
+  relic:
+    obtain: "{player}, 설화 '{relic}'을 품었도다."
+    fusion: "{player}, 설화를 얽어 '{relic}'을 빚어냈도다."
+  skill:
+    use: "{player}, {aspect}의 권능 '{skill}'을 펼쳤도다."
+  omen: "{stage}의 전조가 드러났으니, {reason}라 하도다."
+  inherit_loss: "{player}, {aspect}과의 인연이 끊어졌도다."
+commands.admin:
+  usage:
+    - "{label} admin spawnboss <엔티티타입> <이름> [hp] [armor] [world] [x y z]"
+    - "{label} admin bosslist"
+    - "{label} admin endboss <bossId>"
+    - "{label} admin inherit <갈래> <플레이어>"
+    - "{label} admin clearinherit <갈래>"
+    - "{label} admin relic <give|remove> <플레이어> <설화>"
+    - "{label} admin chronicle [개수]"
+    - "{label} admin omen <단계> [사유]"
+    - "{label} admin balance"
+  inherit_usage: "사용법: /myth admin inherit <갈래> <플레이어>"
+  inherit_success: "{player}에게 {aspect}의 힘을 부여했습니다."
+  clear_usage: "사용법: /myth admin clearinherit <갈래>"
+  clear_success: "{aspect}의 계승자를 초기화했습니다."
+  relic_usage: "사용법: /myth admin relic <give|remove> <플레이어> <설화>"
+  relic_duplicate: "이미 해당 설화를 보유하고 있습니다."
+  relic_grant: "{player}에게 {relic}을(를) 부여했습니다."
+  relic_removed: "{player}에게서 {relic}을(를) 회수했습니다."
+  relic_not_owned: "해당 설화를 보유하고 있지 않습니다."
+  omen_usage: "사용법: /myth admin omen <STARSHIFT|GHOST_FIRE|SKYBREAK> [사유]"
+  omen_unknown: "알 수 없는 전조 단계입니다."
+  omen_triggered: "{stage} 전조를 호출했습니다. 사유: {reason}"
+omen:
+  starshift: "[전조] 별자리가 뒤틀리며 속삭임이 들려온다."
+  ghost_fire: "[전조] 도깨비불이 들판을 가득 메우기 시작한다."
+  skybreak: "[전조] 하늘빛이 찢어지고 번개가 전 서버를 뒤덮는다."
+  starshift.actionbar: "별자리의 배열이 낯설게 뒤엉켰다."
+  skybreak.actionbar: "하늘이 붉게 갈라진다!"
+  unknown_reason: "이유는 아무도 모른다"
