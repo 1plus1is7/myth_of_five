@@ -17,6 +17,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -24,6 +25,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BookMeta;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +65,20 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0 || !args[0].equalsIgnoreCase("admin")) {
+        if (args.length == 0) {
+            sendUsage(sender, label);
+            return true;
+        }
+        String root = args[0].toLowerCase(Locale.ROOT);
+        if (root.equals("help")) {
+            sendUsage(sender, label);
+            return true;
+        }
+        if (root.equals("guide")) {
+            handleGuide(sender, label);
+            return true;
+        }
+        if (!root.equals("admin")) {
             sendUsage(sender, label);
             return true;
         }
@@ -326,6 +342,35 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private void handleGuide(CommandSender sender, String label) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text(messages.format("commands.common.player_only"), NamedTextColor.RED));
+            return;
+        }
+        ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
+        if (!(book.getItemMeta() instanceof BookMeta meta)) {
+            sender.sendMessage(Component.text(messages.format("commands.myth.guide.error"), NamedTextColor.RED));
+            return;
+        }
+        meta.setTitle(messages.format("commands.myth.guide.title"));
+        meta.setAuthor(messages.format("commands.myth.guide.author"));
+        Map<String, String> placeholders = Map.of("command", "/" + label);
+        Component[] pages = messages.formatList("commands.myth.guide.pages", placeholders).stream()
+                .map(Component::text)
+                .toArray(Component[]::new);
+        if (pages.length > 0) {
+            meta.addPages(pages);
+        }
+        book.setItemMeta(meta);
+        Map<Integer, ItemStack> overflow = player.getInventory().addItem(book);
+        if (overflow.isEmpty()) {
+            player.sendMessage(Component.text(messages.format("commands.myth.guide.received"), NamedTextColor.GOLD));
+            return;
+        }
+        player.sendMessage(Component.text(messages.format("commands.myth.guide.dropped"), NamedTextColor.YELLOW));
+        overflow.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
+    }
+
     private void sendUsage(CommandSender sender, String label) {
         for (String line : messages.formatList("commands.admin.usage", Map.of("label", "/" + label))) {
             sender.sendMessage(Component.text(line, NamedTextColor.GRAY));
@@ -341,10 +386,13 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Collections.singletonList("admin");
+            return partial(List.of("admin", "guide", "help"), args[0]);
+        }
+        if (!args[0].equalsIgnoreCase("admin")) {
+            return Collections.emptyList();
         }
         if (args.length == 2) {
-            return List.of("spawnboss", "bosslist", "endboss", "inherit", "clearinherit", "relic", "chronicle", "omen", "balance");
+            return partial(List.of("spawnboss", "bosslist", "endboss", "inherit", "clearinherit", "relic", "chronicle", "omen", "balance"), args[1]);
         }
         String sub = args[1].toLowerCase(Locale.ROOT);
         switch (sub) {
@@ -391,5 +439,15 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             }
         }
         return Collections.emptyList();
+    }
+
+    private List<String> partial(List<String> values, String token) {
+        if (token == null || token.isEmpty()) {
+            return values;
+        }
+        String lower = token.toLowerCase(Locale.ROOT);
+        return values.stream()
+                .filter(value -> value.toLowerCase(Locale.ROOT).startsWith(lower))
+                .collect(Collectors.toList());
     }
 }

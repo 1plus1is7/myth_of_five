@@ -33,6 +33,10 @@ public class RelicCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "help" -> {
+                sendUsage(sender, label);
+                return true;
+            }
             case "list" -> {
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(messages.format("commands.common.player_only"));
@@ -88,7 +92,7 @@ public class RelicCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            completions.addAll(List.of("list", "fusions"));
+            completions.addAll(List.of("help", "list", "fusions"));
         }
         String current = args[args.length - 1].toLowerCase(Locale.ROOT);
         return completions.stream().filter(entry -> entry.toLowerCase(Locale.ROOT).startsWith(current)).toList();
