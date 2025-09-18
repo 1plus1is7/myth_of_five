@@ -20,6 +20,10 @@ commands:
     description: Relic overview commands
     usage: /relic <subcommand>
     permission: myth.user.relic
+  hunter:
+    description: Hunter route commands
+    usage: /hunter <subcommand>
+    permission: myth.user.hunter
 permissions:
   myth.admin.*:
     description: Full access to myth admin commands
@@ -31,6 +35,7 @@ permissions:
       myth.admin.inherit: true
       myth.admin.relic: true
       myth.admin.omen: true
+      myth.admin.hunter: true
   myth.admin.spawnboss:
     description: Spawn a dokkaebi boss
     default: op
@@ -48,6 +53,9 @@ permissions:
     default: op
   myth.admin.omen:
     description: Trigger omen stages
+    default: op
+  myth.admin.hunter:
+    description: Configure hunter systems
     default: op
   myth.user.squad.*:
     description: Access to squad commands
@@ -82,4 +90,7 @@ permissions:
     default: true
   myth.user.relic:
     description: Use relic commands
+    default: true
+  myth.user.hunter:
+    description: Use hunter commands
     default: true

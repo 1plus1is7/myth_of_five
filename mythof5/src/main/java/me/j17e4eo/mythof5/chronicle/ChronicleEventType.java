@@ -11,5 +11,10 @@ public enum ChronicleEventType {
     SKILL,
     RELIC_GAIN,
     RELIC_FUSION,
-    OMEN
+    OMEN,
+    HUNTER_ENGRAVE,
+    HUNTER_ARTIFACT,
+    HUNTER_BURNED,
+    HUNTER_RELEASE,
+    HUNTER_RESET
 }
