@@ -24,6 +24,10 @@ commands:
     description: Hunter route commands
     usage: /hunter <subcommand>
     permission: myth.user.hunter
+  seal:
+    description: Weapon sealing interface
+    usage: /seal
+    permission: myth.user.seal
 permissions:
   myth.admin.*:
     description: Full access to myth admin commands
@@ -36,6 +40,7 @@ permissions:
       myth.admin.relic: true
       myth.admin.omen: true
       myth.admin.hunter: true
+      myth.admin.seal: true
   myth.admin.spawnboss:
     description: Spawn a dokkaebi boss
     default: op
@@ -94,3 +99,9 @@ permissions:
   myth.user.hunter:
     description: Use hunter commands
     default: true
+  myth.user.seal:
+    description: Use weapon sealing commands
+    default: true
+  myth.admin.seal:
+    description: Manage weapon seal data
+    default: op

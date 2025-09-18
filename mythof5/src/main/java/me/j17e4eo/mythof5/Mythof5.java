@@ -14,6 +14,8 @@ import me.j17e4eo.mythof5.hunter.ParadoxManager;
 import me.j17e4eo.mythof5.hunter.command.HunterCommand;
 import me.j17e4eo.mythof5.hunter.data.ArtifactGrade;
 import me.j17e4eo.mythof5.hunter.math.SealMath;
+import me.j17e4eo.mythof5.hunter.seal.SealManager;
+import me.j17e4eo.mythof5.hunter.seal.command.SealCommand;
 import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
 import me.j17e4eo.mythof5.listener.BossListener;
@@ -51,6 +53,7 @@ public final class Mythof5 extends JavaPlugin {
     private BalanceTable balanceTable;
     private HunterManager hunterManager;
     private ParadoxManager paradoxManager;
+    private SealManager sealManager;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -113,6 +116,8 @@ public final class Mythof5 extends JavaPlugin {
                 longThreshold, mediumThreshold, lateThreshold, gaugeOverrides);
         hunterManager.load();
 
+        sealManager = new SealManager(this, messages, hunterManager, aspectManager);
+
         long ritualWindow = getConfig().getLong("hunter.paradox.ritual_window", 600L);
         double failureScale = getConfig().getDouble("hunter.paradox.failure_scale", 1.5D);
         paradoxManager = new ParadoxManager(this, messages, chronicleManager, hunterManager, ritualWindow, failureScale);
@@ -126,6 +131,7 @@ public final class Mythof5 extends JavaPlugin {
         pluginManager.registerEvents(inheritManager, this);
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
         pluginManager.registerEvents(new HunterListener(hunterManager), this);
+        pluginManager.registerEvents(sealManager, this);
 
         registerCommands();
 
@@ -133,6 +139,7 @@ public final class Mythof5 extends JavaPlugin {
         for (Player player : Bukkit.getOnlinePlayers()) {
             aspectManager.handlePlayerJoin(player);
             hunterManager.handleJoin(player);
+            sealManager.handleJoin(player);
         }
         bossManager.initializeBossBars();
         playerListener.initializeExistingPlayers();
@@ -165,6 +172,9 @@ public final class Mythof5 extends JavaPlugin {
         if (hunterManager != null) {
             hunterManager.save();
             hunterManager.shutdown();
+        }
+        if (sealManager != null) {
+            sealManager.shutdown();
         }
 
         if (doubleJumpEnabled) {
@@ -203,6 +213,11 @@ public final class Mythof5 extends JavaPlugin {
         HunterCommand hunterExecutor = new HunterCommand(this, hunterManager, messages);
         hunterCommand.setExecutor(hunterExecutor);
         hunterCommand.setTabCompleter(hunterExecutor);
+
+        PluginCommand sealCommand = Objects.requireNonNull(getCommand("seal"), "Command seal not defined in plugin.yml");
+        SealCommand sealExecutor = new SealCommand(sealManager, messages);
+        sealCommand.setExecutor(sealExecutor);
+        sealCommand.setTabCompleter(sealExecutor);
     }
 
     public BossManager getBossManager() {
@@ -318,6 +333,37 @@ public final class Mythof5 extends JavaPlugin {
         config.addDefault("hunter.omens.thresholds.late", 5);
         config.addDefault("hunter.paradox.ritual_window", 600L);
         config.addDefault("hunter.paradox.failure_scale", 1.5D);
+        config.addDefault("seal.enabled", true);
+        config.addDefault("seal.allow_unseal", true);
+        config.addDefault("seal.allow_upgrade", false);
+        config.addDefault("seal.auto_popup", false);
+        config.addDefault("seal.gui_rows", 3);
+        config.addDefault("seal.weapon_whitelist", List.of("DIAMOND_SWORD", "NETHERITE_SWORD", "TRIDENT", "BOW", "CROSSBOW", "NETHERITE_AXE", "DIAMOND_AXE"));
+        config.addDefault("seal.name_format", "{aspect} 봉인된 무기 (T{tier})");
+        config.addDefault("seal.lore_lines", List.of("Aspect: {aspect}", "Tier: {tier}"));
+        config.addDefault("drop.flame.amount", 1);
+        config.addDefault("drop.flame.always", true);
+        config.addDefault("drop.flame.announce", true);
+        config.addDefault("drop.flame.protect_seconds", 8);
+        config.addDefault("drop.flame.default_tier", 1);
+        config.addDefault("aspect.force.tier.1.damage_multiplier", 1.15D);
+        config.addDefault("aspect.force.tier.1.knockback", 0.45D);
+        config.addDefault("aspect.speed.tier.1.speed_level", 0);
+        config.addDefault("aspect.speed.tier.1.speed_duration", 120);
+        config.addDefault("aspect.speed.tier.1.attack_speed", 0.1D);
+        config.addDefault("aspect.mischief.tier.1.confusion_chance", 0.2D);
+        config.addDefault("aspect.mischief.tier.1.confusion_seconds", 4);
+        config.addDefault("aspect.mischief.tier.1.vanish_seconds", 2);
+        config.addDefault("aspect.flame.tier.1.fire_seconds", 4);
+        config.addDefault("aspect.flame.tier.1.ignite_chance", 0.8D);
+        config.addDefault("aspect.flame.tier.1.bonus_damage", 1.0D);
+        config.addDefault("aspect.flame.tier.1.glow_seconds", 2);
+        config.addDefault("aspect.forge.tier.1.durability_reduction", 0.5D);
+        config.addDefault("aspect.forge.tier.1.crit_chance", 0.15D);
+        config.addDefault("aspect.forge.tier.1.crit_multiplier", 1.5D);
+        config.addDefault("upgrade.cost.same_flames", 3);
+        config.addDefault("upgrade.max_tier", 5);
+        config.addDefault("upgrade.success_chance", 0.85D);
         config.options().copyDefaults(true);
         saveConfig();
     }

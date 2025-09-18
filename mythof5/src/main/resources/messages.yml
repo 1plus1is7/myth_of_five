@@ -65,6 +65,15 @@ commands:
       - "{label} paradox <summon|offer>"
       - "{label} admin <subcommand> ..."
       - "{label} test <subcommand> ..."
+  seal:
+    usage: "/{label} [status]"
+    admin:
+      usage: "/{label} admin <inspect|unseal> <플레이어>"
+      inspect_usage: "/{label} admin inspect <플레이어>"
+      unseal_usage: "/{label} admin unseal <플레이어>"
+      unseal_success: "{player}의 손에 든 무기 봉인을 해제했습니다."
+      unsealed_notice: "관리자가 현재 들고 있는 무기의 봉인을 강제로 해제했습니다."
+      unseal_fail: "{player}은(는) 봉인된 무기를 들고 있지 않습니다."
 squad:
   already_in_squad: "이미 다른 부대에 소속되어 있습니다."
   name_taken: "이미 존재하는 부대 이름입니다."
@@ -370,3 +379,58 @@ omen:
   starshift.actionbar: "별자리의 배열이 낯설게 뒤엉켰다."
   skybreak.actionbar: "하늘이 붉게 갈라진다!"
   unknown_reason: "이유는 아무도 모른다"
+
+error:
+  seal:
+    disabled: "사냥꾼 봉인 기능이 현재 비활성화되어 있습니다."
+  flame:
+    protected: "아직 주인의 보호가 끝나지 않은 도깨비불입니다."
+  weapon:
+    not_allowed: "이 무기에는 도깨비불을 봉인할 수 없습니다."
+  already_sealed: "이미 도깨비 힘이 봉인된 무기입니다."
+  not_allowed: "이 행동을 수행할 수 없습니다."
+  not_sealed: "현재 무기에 봉인된 힘이 없습니다."
+
+death:
+  drop:
+    flame:
+      broadcast: "{killer}가 {victim}을 쓰러뜨려 {aspect} 도깨비불을 탈취했습니다!"
+      self: "{victim}을 쓰러뜨려 {aspect} 도깨비불을 손에 넣었습니다."
+
+seal:
+  gui:
+    title: "도깨비불 봉인"
+    button:
+      seal: "봉인하기"
+      unseal: "봉인 해제"
+      unseal_disabled: "해제 불가"
+      upgrade: "강화"
+      upgrade_disabled: "강화 불가"
+      cancel: "닫기"
+      help: "도움말"
+    no_weapon: "들고 있는 무기가 없습니다."
+    preview:
+      ready: "{aspect} (T{tier}) 봉인 준비"
+      detail: "클릭하여 도깨비불을 봉인합니다."
+      wait: "도깨비불을 넣어 주세요."
+    help: "도깨비불을 입력 슬롯에 올려 봉인, 해제, 강화를 선택하세요."
+  flame:
+    name: "{aspect} 도깨비불 (T{tier})"
+    lore: "계승자 {origin}에게서 탈취한 불꽃 — {aspect} · T{tier}"
+    pickup: "{aspect} 도깨비불(T{tier})을 획득했습니다. /seal 로 봉인할 수 있습니다."
+  require:
+    weapon: "먼저 손에 무기를 들어야 합니다."
+    flame: "도깨비불이 필요합니다."
+  success: "{aspect} 도깨비불(T{tier})이 무기에 봉인되었습니다."
+  name_format: "{aspect}의 힘이 깃든 {weapon} (T{tier})"
+  admin:
+    inspect:
+      header: "=== {player} 봉인 목록 ({count}개) ==="
+      empty: "등록된 봉인이 없습니다."
+      entry: "- {weapon} · {aspect} · T{tier} · {created}"
+  unseal:
+    success: "{aspect} 도깨비불(T{tier})을 되찾았습니다."
+  upgrade:
+    max_tier: "이 무기는 더 이상 강화할 수 없습니다."
+    fail: "강화에 실패하여 도깨비불이 사라졌습니다..."
+    success: "무기 봉인이 T{tier} 등급으로 강화되었습니다!"
