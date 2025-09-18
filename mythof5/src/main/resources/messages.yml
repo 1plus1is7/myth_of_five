@@ -6,6 +6,8 @@ commands:
     player_not_online: "해당 플레이어는 온라인이 아닙니다."
   myth:
     usage:
+      - "{label} help"
+      - "{label} guide"
       - "{label} admin spawnboss <엔티티타입> <이름> [hp] [armor] [world] [x y z]"
       - "{label} admin bosslist"
       - "{label} admin endboss <bossId>"
@@ -33,6 +35,42 @@ commands:
     invalid_boss_id: "bossId는 숫자여야 합니다."
     end_success: "보스를 종료했습니다."
     end_not_found: "해당 ID의 보스를 찾을 수 없습니다."
+    guide:
+      title: "Myth of Five 안내서"
+      author: "도깨비 기록가"
+      received: "가이드북을 인벤토리에 넣었습니다."
+      dropped: "인벤토리가 가득 차 가이드북을 발밑에 떨어뜨렸습니다."
+      error: "가이드북을 준비하지 못했습니다. 관리자에게 문의하세요."
+      pages:
+        - |-
+          Myth of Five 안내서
+
+          도깨비 서버 모험의 핵심 명령어를 모았습니다.
+
+          각 명령어는 이제 {command} help 로 사용법을 확인할 수 있습니다.
+
+          이 안내서는 언제든 {command} guide 로 다시 받을 수 있습니다.
+        - |-
+          도깨비 계승
+
+          /goblin help - 스킬, 진행도, 변신 설명
+          /goblin skills [갈래] - 보유 기술 확인
+          /goblin share <갈래> <플레이어> - 힘 나누기
+          /goblin forge - 대장장이 의식 시도
+        - |-
+          분대와 설화
+
+          /squad help - 부대 생성·초대 안내
+          /squad status - 현재 분대 현황 확인
+          /relic help - 설화 목록과 융합 힌트
+          /relic fusions - 알려진 융합 조합 보기
+        - |-
+          사냥꾼과 봉인
+
+          /hunter help - 퀘스트와 봉인 관리 요약
+          /hunter status [플레이어] - 사냥꾼 정보 열람
+          /seal help - 봉인 인터페이스 설명
+          /myth help - 관리자 도구 목록 확인
   goblin:
     activated: "도깨비화가 발동되었습니다!"
     deactivated: "도깨비화를 해제했습니다."
@@ -42,6 +80,7 @@ commands:
     select_cancelled: "변신이 취소되었습니다."
   squad:
     usage:
+      - "{label} help"
       - "{label} create <이름>"
       - "{label} invite <플레이어>"
       - "{label} accept <부대>"
@@ -56,6 +95,7 @@ commands:
     cannot_invite_self: "자기 자신은 초대할 수 없습니다."
   hunter:
     usage:
+      - "{label} help"
       - "{label} quest <accept|complete>"
       - "{label} status [플레이어]"
       - "{label} craft <종류> <출처> <등급> <이름...>"
@@ -66,7 +106,7 @@ commands:
       - "{label} admin <subcommand> ..."
       - "{label} test <subcommand> ..."
   seal:
-    usage: "/{label} [status]"
+    usage: "/{label} [status|help]"
     admin:
       usage: "/{label} admin <inspect|unseal> <플레이어>"
       inspect_usage: "/{label} admin inspect <플레이어>"
@@ -299,6 +339,7 @@ goblin:
     ANVIL: "모루"
 relic:
   usage:
+    - "{label} help"
     - "{label} list"
     - "{label} fusions"
   obtain:
@@ -351,6 +392,8 @@ chronicle:
     reset_failure: "{player}, 역설 봉헌에 실패하여 역설이 폭주하였도다."
 commands.admin:
   usage:
+    - "{label} help"
+    - "{label} guide"
     - "{label} admin spawnboss <엔티티타입> <이름> [hp] [armor] [world] [x y z]"
     - "{label} admin bosslist"
     - "{label} admin endboss <bossId>"

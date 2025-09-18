@@ -40,6 +40,9 @@ public class SquadCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "help":
+                sendUsage(player, label);
+                return true;
             case "create":
                 handleCreate(player, label, args);
                 return true;
@@ -128,7 +131,7 @@ public class SquadCommand implements CommandExecutor, TabCompleter {
             return Collections.emptyList();
         }
         if (args.length == 1) {
-            return Arrays.asList("create", "invite", "accept", "leave", "disband", "status");
+            return Arrays.asList("help", "create", "invite", "accept", "leave", "disband", "status");
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {

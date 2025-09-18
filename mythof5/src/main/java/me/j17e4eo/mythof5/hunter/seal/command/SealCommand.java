@@ -45,9 +45,10 @@ public class SealCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "help" -> sendUsage(sender, label);
             case "status" -> handleStatus(sender, Arrays.copyOfRange(args, 1, args.length));
             case "admin" -> handleAdmin(sender, Arrays.copyOfRange(args, 1, args.length));
-            default -> sender.sendMessage(messages.format("commands.seal.usage", Map.of("label", label)));
+            default -> sendUsage(sender, label);
         }
         return true;
     }
@@ -74,6 +75,10 @@ public class SealCommand implements CommandExecutor, TabCompleter {
             case "unseal" -> handleForceUnseal(sender, Arrays.copyOfRange(args, 1, args.length));
             default -> sender.sendMessage(messages.format("commands.seal.admin.usage"));
         }
+    }
+
+    private void sendUsage(CommandSender sender, String label) {
+        sender.sendMessage(messages.format("commands.seal.usage", Map.of("label", label)));
     }
 
     private void handleInspect(CommandSender sender, String[] args) {
@@ -117,6 +122,7 @@ public class SealCommand implements CommandExecutor, TabCompleter {
     public @NotNull List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
             List<String> list = new ArrayList<>();
+            list.add("help");
             list.add("status");
             list.add("admin");
             return partial(list, args[0]);

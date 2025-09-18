@@ -54,6 +54,10 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "help" -> {
+                sendUsage(sender, label);
+                return true;
+            }
             case "quest" -> handleQuest(sender, label, Arrays.copyOfRange(args, 1, args.length));
             case "status" -> handleStatus(sender, Arrays.copyOfRange(args, 1, args.length));
             case "craft" -> handleCraft(sender, Arrays.copyOfRange(args, 1, args.length));
@@ -71,7 +75,7 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
 
     private void sendUsage(CommandSender sender, String label) {
         for (String line : messages.formatList("commands.hunter.usage", Map.of("label", label))) {
-            sender.sendMessage(line);
+            sender.sendMessage("/" + line);
         }
     }
 
@@ -414,7 +418,7 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return filter(List.of("quest", "status", "craft", "list", "ability", "patch", "rebind", "paradox", "admin", "test"), args[0]);
+            return filter(List.of("help", "quest", "status", "craft", "list", "ability", "patch", "rebind", "paradox", "admin", "test"), args[0]);
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         if (sub.equals("quest")) {
@@ -443,7 +447,7 @@ public class HunterCommand implements CommandExecutor, TabCompleter {
         }
         List<String> filtered = new ArrayList<>();
         for (String option : options) {
-            if (option.startsWith(current.toLowerCase(Locale.ROOT))) {
+            if (option.toLowerCase(Locale.ROOT).startsWith(current.toLowerCase(Locale.ROOT))) {
                 filtered.add(option);
             }
         }
