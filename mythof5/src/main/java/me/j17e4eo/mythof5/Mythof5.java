@@ -58,11 +58,11 @@ public final class Mythof5 extends JavaPlugin {
         omenManager = new OmenManager(this, messages, chronicleManager);
         balanceTable = new BalanceTable();
 
-        inheritManager = new InheritManager(this, messages);
-        inheritManager.load();
-
         aspectManager = new AspectManager(this, messages, chronicleManager, relicManager, omenManager);
         aspectManager.load();
+
+        inheritManager = new InheritManager(this, messages, aspectManager);
+        inheritManager.load();
 
         bossManager = new BossManager(this, inheritManager, aspectManager, messages);
         squadManager = new SquadManager(this, messages);
@@ -199,8 +199,24 @@ public final class Mythof5 extends JavaPlugin {
                 "generic.attack_damage:add:2"
         ));
         config.addDefault("inherit.announce", true);
-        config.addDefault("inherit.transformation.scale_multiplier", 2.0D);
-        config.addDefault("inherit.transformation.attack_bonus", 6.0D);
+        config.addDefault("inherit.transformation.default.scale_multiplier", 2.0D);
+        config.addDefault("inherit.transformation.default.attack_bonus", 6.0D);
+        config.addDefault("inherit.transformation.default.speed_bonus", 0.0D);
+        config.addDefault("inherit.transformation.aspects.power.scale_multiplier", 2.4D);
+        config.addDefault("inherit.transformation.aspects.power.attack_bonus", 9.0D);
+        config.addDefault("inherit.transformation.aspects.power.speed_bonus", 0.02D);
+        config.addDefault("inherit.transformation.aspects.speed.scale_multiplier", 1.8D);
+        config.addDefault("inherit.transformation.aspects.speed.attack_bonus", 4.0D);
+        config.addDefault("inherit.transformation.aspects.speed.speed_bonus", 0.08D);
+        config.addDefault("inherit.transformation.aspects.mischief.scale_multiplier", 1.9D);
+        config.addDefault("inherit.transformation.aspects.mischief.attack_bonus", 5.0D);
+        config.addDefault("inherit.transformation.aspects.mischief.speed_bonus", 0.05D);
+        config.addDefault("inherit.transformation.aspects.flame.scale_multiplier", 2.1D);
+        config.addDefault("inherit.transformation.aspects.flame.attack_bonus", 5.5D);
+        config.addDefault("inherit.transformation.aspects.flame.speed_bonus", 0.04D);
+        config.addDefault("inherit.transformation.aspects.forge.scale_multiplier", 2.35D);
+        config.addDefault("inherit.transformation.aspects.forge.attack_bonus", 8.0D);
+        config.addDefault("inherit.transformation.aspects.forge.speed_bonus", -0.01D);
         config.addDefault("goblin.triggers.power.boss_keywords", List.of("태초의 도깨비"));
         config.addDefault("goblin.triggers.speed.trace_items", List.of("SNOWBALL", "GOAT_HORN"));
         config.addDefault("goblin.triggers.mischief.contract_items", List.of("WRITTEN_BOOK", "WRITABLE_BOOK"));

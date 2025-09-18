@@ -2,6 +2,7 @@ package me.j17e4eo.mythof5.inherit;
 
 import me.j17e4eo.mythof5.Mythof5;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -13,6 +14,7 @@ import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -29,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,10 +55,12 @@ public class InheritManager {
     private final Set<UUID> transformedPlayers = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<UUID> applyTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<UUID> removeTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final double transformationScaleMultiplier;
-    private final double transformationAttackBonus;
+    private final AspectManager aspectManager;
     private final NamespacedKey transformationScaleModifierKey;
     private final NamespacedKey transformationAttackModifierKey;
+    private final NamespacedKey transformationSpeedModifierKey;
+    private final Map<GoblinAspect, TransformationProfile> transformationProfiles = new EnumMap<>(GoblinAspect.class);
+    private final TransformationProfile defaultTransformationProfile;
     private final Component goblinFlameDisplayName = Component.text("도깨비불", NamedTextColor.GOLD);
     private static final double ATTRIBUTE_EPSILON = 1.0E-4D;
     private File dataFile;
@@ -63,9 +68,10 @@ public class InheritManager {
     private UUID inheritorId;
     private String inheritorName;
 
-    public InheritManager(Mythof5 plugin, Messages messages) {
+    public InheritManager(Mythof5 plugin, Messages messages, AspectManager aspectManager) {
         this.plugin = plugin;
         this.messages = messages;
+        this.aspectManager = aspectManager;
         this.inheritorFlagKey = new NamespacedKey(plugin, "is_inheritor");
         this.powerKeyKey = new NamespacedKey(plugin, "power_key");
         this.transformationFlagKey = new NamespacedKey(plugin, "goblin_transformed");
@@ -73,16 +79,44 @@ public class InheritManager {
         this.goblinFlameKey = new NamespacedKey(plugin, "goblin_flame");
         this.transformationScaleModifierKey = new NamespacedKey(plugin, "goblin_transform_scale");
         this.transformationAttackModifierKey = new NamespacedKey(plugin, "goblin_transform_attack");
+        this.transformationSpeedModifierKey = new NamespacedKey(plugin, "goblin_transform_speed");
         this.powerKeyValue = plugin.getConfig().getString("inherit.power_key", "dokkaebi.core");
         this.announceEnabled = plugin.getConfig().getBoolean("inherit.announce", true);
-        double scale = plugin.getConfig().getDouble("inherit.transformation.scale_multiplier", 2.0D);
-        if (scale < 1.0D) {
-            plugin.getLogger().warning("inherit.transformation.scale_multiplier must be at least 1.0. Using 1.0 instead.");
-            scale = 1.0D;
-        }
-        this.transformationScaleMultiplier = scale;
-        this.transformationAttackBonus = plugin.getConfig().getDouble("inherit.transformation.attack_bonus", 6.0D);
+        FileConfiguration config = plugin.getConfig();
+        this.defaultTransformationProfile = loadDefaultTransformationProfile(config);
+        loadAspectTransformationProfiles(config);
         loadBuffs();
+    }
+
+    private TransformationProfile loadDefaultTransformationProfile(FileConfiguration config) {
+        double scale = config.getDouble("inherit.transformation.default.scale_multiplier",
+                config.getDouble("inherit.transformation.scale_multiplier", 2.0D));
+        double attack = config.getDouble("inherit.transformation.default.attack_bonus",
+                config.getDouble("inherit.transformation.attack_bonus", 6.0D));
+        double speed = config.getDouble("inherit.transformation.default.speed_bonus",
+                config.getDouble("inherit.transformation.speed_bonus", 0.0D));
+        scale = sanitizeScale(scale, "default");
+        return new TransformationProfile(scale, attack, speed);
+    }
+
+    private void loadAspectTransformationProfiles(FileConfiguration config) {
+        transformationProfiles.clear();
+        for (GoblinAspect aspect : GoblinAspect.values()) {
+            String basePath = "inherit.transformation.aspects." + aspect.getKey();
+            double scale = config.getDouble(basePath + ".scale_multiplier", defaultTransformationProfile.scaleMultiplier());
+            double attack = config.getDouble(basePath + ".attack_bonus", defaultTransformationProfile.attackBonus());
+            double speed = config.getDouble(basePath + ".speed_bonus", defaultTransformationProfile.speedBonus());
+            scale = sanitizeScale(scale, "aspects." + aspect.getKey());
+            transformationProfiles.put(aspect, new TransformationProfile(scale, attack, speed));
+        }
+    }
+
+    private double sanitizeScale(double scale, String profileKey) {
+        if (scale < 1.0D) {
+            plugin.getLogger().warning("inherit.transformation." + profileKey + ".scale_multiplier must be at least 1.0. Using 1.0 instead.");
+            return 1.0D;
+        }
+        return scale;
     }
 
     public void load() {
@@ -553,29 +587,44 @@ public class InheritManager {
     }
 
     private void applyTransformationAttributes(Player player) {
-        if (transformationScaleMultiplier > 1.0D) {
-            AttributeInstance scale = player.getAttribute(Attribute.SCALE);
-            if (scale != null) {
-                scale.removeModifier(transformationScaleModifierKey);
-                double modifierAmount = transformationScaleMultiplier - 1.0D;
+        TransformationProfile profile = resolveTransformationProfile(player);
+
+        AttributeInstance scale = player.getAttribute(Attribute.SCALE);
+        if (scale != null) {
+            scale.removeModifier(transformationScaleModifierKey);
+            double multiplier = Math.max(1.0D, profile.scaleMultiplier());
+            if (multiplier > 1.0D + ATTRIBUTE_EPSILON) {
+                double modifierAmount = multiplier - 1.0D;
                 AttributeModifier modifier = new AttributeModifier(transformationScaleModifierKey, modifierAmount,
                         AttributeModifier.Operation.MULTIPLY_SCALAR_1);
                 scale.addModifier(modifier);
-            } else {
-                plugin.getLogger().warning("Player " + player.getName() + " is missing attribute " + Attribute.SCALE.getKey());
             }
+        } else {
+            plugin.getLogger().warning("Player " + player.getName() + " is missing attribute " + Attribute.SCALE.getKey());
         }
 
-        if (transformationAttackBonus != 0.0D) {
-            AttributeInstance attack = player.getAttribute(Attribute.ATTACK_DAMAGE);
-            if (attack != null) {
-                attack.removeModifier(transformationAttackModifierKey);
-                AttributeModifier modifier = new AttributeModifier(transformationAttackModifierKey, transformationAttackBonus,
+        AttributeInstance attack = player.getAttribute(Attribute.ATTACK_DAMAGE);
+        if (attack != null) {
+            attack.removeModifier(transformationAttackModifierKey);
+            if (Math.abs(profile.attackBonus()) > ATTRIBUTE_EPSILON) {
+                AttributeModifier modifier = new AttributeModifier(transformationAttackModifierKey, profile.attackBonus(),
                         AttributeModifier.Operation.ADD_NUMBER);
                 attack.addModifier(modifier);
-            } else {
-                plugin.getLogger().warning("Player " + player.getName() + " is missing attribute " + Attribute.ATTACK_DAMAGE.getKey());
             }
+        } else {
+            plugin.getLogger().warning("Player " + player.getName() + " is missing attribute " + Attribute.ATTACK_DAMAGE.getKey());
+        }
+
+        AttributeInstance speed = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        if (speed != null) {
+            speed.removeModifier(transformationSpeedModifierKey);
+            if (Math.abs(profile.speedBonus()) > ATTRIBUTE_EPSILON) {
+                AttributeModifier modifier = new AttributeModifier(transformationSpeedModifierKey, profile.speedBonus(),
+                        AttributeModifier.Operation.ADD_NUMBER);
+                speed.addModifier(modifier);
+            }
+        } else {
+            plugin.getLogger().warning("Player " + player.getName() + " is missing attribute " + Attribute.MOVEMENT_SPEED.getKey());
         }
     }
 
@@ -588,6 +637,10 @@ public class InheritManager {
         if (attack != null) {
             attack.removeModifier(transformationAttackModifierKey);
         }
+        AttributeInstance speed = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        if (speed != null) {
+            speed.removeModifier(transformationSpeedModifierKey);
+        }
     }
 
     private boolean hasActiveTransformationAttributes(Player player) {
@@ -595,7 +648,27 @@ public class InheritManager {
         boolean scaleActive = scale != null && scale.getModifier(transformationScaleModifierKey) != null;
         AttributeInstance attack = player.getAttribute(Attribute.ATTACK_DAMAGE);
         boolean attackActive = attack != null && attack.getModifier(transformationAttackModifierKey) != null;
-        return scaleActive || attackActive;
+        AttributeInstance speed = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        boolean speedActive = speed != null && speed.getModifier(transformationSpeedModifierKey) != null;
+        return scaleActive || attackActive || speedActive;
+    }
+
+    private TransformationProfile resolveTransformationProfile(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (aspectManager == null) {
+            return defaultTransformationProfile;
+        }
+        for (GoblinAspect aspect : GoblinAspect.values()) {
+            if (aspectManager.isInheritor(aspect, uuid)) {
+                return transformationProfiles.getOrDefault(aspect, defaultTransformationProfile);
+            }
+        }
+        for (GoblinAspect aspect : GoblinAspect.values()) {
+            if (aspectManager.isShared(aspect, uuid)) {
+                return transformationProfiles.getOrDefault(aspect, defaultTransformationProfile);
+            }
+        }
+        return defaultTransformationProfile;
     }
 
     private boolean hasAttributeBuff(Player player, AttributeBuff buff) {
@@ -660,6 +733,9 @@ public class InheritManager {
         ADD_NUMBER,
         MULTIPLY_SCALAR_1,
         ADD_SCALAR
+    }
+
+    private record TransformationProfile(double scaleMultiplier, double attackBonus, double speedBonus) {
     }
 
     private record AttributeBuff(Attribute attribute, AttributeOperation operation, double amount, NamespacedKey key) {
