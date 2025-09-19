@@ -94,6 +94,7 @@ public class AspectManager {
     private final Map<UUID, Double> originalMaxHealth = new HashMap<>();
     private final Map<UUID, Set<GoblinAspect>> activeInheritorAspects = new HashMap<>();
     private final Map<UUID, Double> pendingMaxHealthRestores = new HashMap<>();
+    private GoblinWeaponManager weaponManager;
     private File dataFile;
     private YamlConfiguration dataConfig;
 
@@ -138,6 +139,10 @@ public class AspectManager {
             profiles.put(aspect, new AspectProfile());
             healthModifierKeys.put(aspect, new NamespacedKey(plugin, "aspect_penalty_" + aspect.getKey()));
         }
+    }
+
+    public void setWeaponManager(GoblinWeaponManager weaponManager) {
+        this.weaponManager = weaponManager;
     }
 
     public void load() {
@@ -251,6 +256,9 @@ public class AspectManager {
             } else if (profile.shared.contains(uuid)) {
                 applyPassive(aspect, player, false);
             }
+        }
+        if (weaponManager != null) {
+            weaponManager.handleJoin(player);
         }
         cleanupLegendaryWeapons(player.getInventory());
     }
@@ -477,11 +485,17 @@ public class AspectManager {
         if (profile.inheritor != null && profile.inheritor.equals(player.getUniqueId())) {
             profile.name = player.getName();
             applyPassive(aspect, player, true);
+            if (weaponManager != null) {
+                weaponManager.grantWeapon(aspect, player, true);
+            }
             return;
         }
         Player previousPlayer = profile.inheritor != null ? Bukkit.getPlayer(profile.inheritor) : null;
         if (previousPlayer != null && previousPlayer.isOnline()) {
             removePassive(aspect, previousPlayer, true);
+            if (weaponManager != null) {
+                weaponManager.revokeWeapon(aspect, previousPlayer);
+            }
         }
         profile.inheritor = player.getUniqueId();
         profile.name = player.getName();
@@ -489,6 +503,9 @@ public class AspectManager {
         applyPassive(aspect, player, true);
         applySharedEffects(aspect, player);
         updateHealthPenalty(aspect);
+        if (weaponManager != null) {
+            weaponManager.grantWeapon(aspect, player, true);
+        }
         if (aspect == GoblinAspect.SPEED) {
             speedProgress.remove(player.getUniqueId());
         }
@@ -516,6 +533,9 @@ public class AspectManager {
             Player prevPlayer = Bukkit.getPlayer(previous);
             if (prevPlayer != null) {
                 removePassive(aspect, prevPlayer, true);
+                if (weaponManager != null) {
+                    weaponManager.revokeWeapon(aspect, prevPlayer);
+                }
             }
             removeInheritorHealth(aspect, previous, prevPlayer);
         }
@@ -523,6 +543,9 @@ public class AspectManager {
             Player target = Bukkit.getPlayer(shared);
             if (target != null) {
                 removePassive(aspect, target, false);
+                if (weaponManager != null) {
+                    weaponManager.revokeWeapon(aspect, target);
+                }
             }
         }
         profile.shared.clear();
@@ -551,6 +574,9 @@ public class AspectManager {
         }
         profile.shared.add(target.getUniqueId());
         applyPassive(aspect, target, false);
+        if (weaponManager != null) {
+            weaponManager.grantWeapon(aspect, target, false);
+        }
         updateHealthPenalty(aspect);
         save();
         chronicleManager.logEvent(ChronicleEventType.SHARE,
@@ -568,6 +594,9 @@ public class AspectManager {
             return false;
         }
         removePassive(aspect, target, false);
+        if (weaponManager != null) {
+            weaponManager.revokeWeapon(aspect, target);
+        }
         updateHealthPenalty(aspect);
         save();
         return true;
@@ -575,46 +604,58 @@ public class AspectManager {
 
     public boolean useSkill(Player player, String key) {
         key = key.toLowerCase(Locale.ROOT);
-        boolean used = false;
         for (GoblinAspect aspect : GoblinAspect.values()) {
-            AspectProfile profile = profiles.get(aspect);
-            boolean inheritor = profile.isInheritor(player.getUniqueId());
-            boolean shared = profile.shared.contains(player.getUniqueId());
-            if (!inheritor && !shared) {
-                continue;
-            }
-            for (GoblinSkill skill : aspect.getSkills()) {
-                if (!skill.getKey().equals(key)) {
-                    continue;
-                }
-                if (skill.getCategory() == GoblinSkillCategory.PASSIVE) {
-                    player.sendMessage(messages.format("goblin.skill.passive"));
-                    return true;
-                }
-                int cooldown = skill.getCooldownSeconds(inheritor);
-                if (!checkCooldown(player.getUniqueId(), aspect, skill, cooldown)) {
-                    long remaining = getRemainingCooldown(player.getUniqueId(), aspect, skill);
-                    player.sendMessage(messages.format("goblin.skill.cooldown", Map.of(
-                            "time", formatSeconds(remaining)
-                    )));
-                    return true;
-                }
-                executeSkill(aspect, skill, player, inheritor);
-                registerCooldown(player.getUniqueId(), aspect, skill, cooldown);
-                chronicleManager.logEvent(ChronicleEventType.SKILL,
-                        messages.format("chronicle.skill.use", Map.of(
-                                "player", player.getName(),
-                                "skill", skill.getDisplayName(),
-                                "aspect", aspect.getDisplayName()
-                        )), List.of(player));
-                used = true;
-                break;
+            if (useSkill(aspect, player, key, false)) {
+                return true;
             }
         }
-        if (!used) {
-            player.sendMessage(messages.format("goblin.skill.unknown"));
+        player.sendMessage(messages.format("goblin.skill.unknown"));
+        return false;
+    }
+
+    public boolean useSkill(GoblinAspect aspect, Player player, String key) {
+        return useSkill(aspect, player, key, true);
+    }
+
+    private boolean useSkill(GoblinAspect aspect, Player player, String key, boolean notifyMissing) {
+        Optional<GoblinSkill> optional = findSkill(aspect, key);
+        if (optional.isEmpty()) {
+            if (notifyMissing) {
+                player.sendMessage(messages.format("goblin.skill.unknown"));
+            }
+            return false;
         }
-        return used;
+        GoblinSkill skill = optional.get();
+        AspectProfile profile = profiles.get(aspect);
+        boolean inheritor = profile.isInheritor(player.getUniqueId());
+        boolean shared = profile.shared.contains(player.getUniqueId());
+        if (!inheritor && !shared) {
+            if (notifyMissing) {
+                player.sendMessage(messages.format("goblin.skill.unknown"));
+            }
+            return false;
+        }
+        if (skill.getCategory() == GoblinSkillCategory.PASSIVE) {
+            player.sendMessage(messages.format("goblin.skill.passive"));
+            return true;
+        }
+        int cooldown = skill.getCooldownSeconds(inheritor);
+        if (!checkCooldown(player.getUniqueId(), aspect, skill, cooldown)) {
+            long remaining = getRemainingCooldown(player.getUniqueId(), aspect, skill);
+            player.sendMessage(messages.format("goblin.skill.cooldown", Map.of(
+                    "time", formatSeconds(remaining)
+            )));
+            return true;
+        }
+        executeSkill(aspect, skill, player, inheritor);
+        registerCooldown(player.getUniqueId(), aspect, skill, cooldown);
+        chronicleManager.logEvent(ChronicleEventType.SKILL,
+                messages.format("chronicle.skill.use", Map.of(
+                        "player", player.getName(),
+                        "skill", skill.getDisplayName(),
+                        "aspect", aspect.getDisplayName()
+                )), List.of(player));
+        return true;
     }
 
     public Set<GoblinAspect> getAspects(UUID uuid) {

@@ -208,6 +208,8 @@ public class InheritManager implements Listener {
         if (inheritorId == null || !player.getUniqueId().equals(inheritorId)) {
             return;
         }
+        event.getDrops().removeIf(this::isGoblinFlame);
+        event.getItemsToKeep().removeIf(this::isGoblinFlame);
         Player killer = player.getKiller();
         if (killer != null && !killer.getUniqueId().equals(player.getUniqueId())) {
             transferInheritance(killer, player);

@@ -19,6 +19,7 @@ import me.j17e4eo.mythof5.hunter.seal.SealManager;
 import me.j17e4eo.mythof5.hunter.seal.command.SealCommand;
 import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.InheritManager;
+import me.j17e4eo.mythof5.inherit.GoblinWeaponManager;
 import me.j17e4eo.mythof5.listener.BossListener;
 import me.j17e4eo.mythof5.listener.PlayerListener;
 import me.j17e4eo.mythof5.listener.SquadListener;
@@ -56,6 +57,7 @@ public final class Mythof5 extends JavaPlugin {
     private ParadoxManager paradoxManager;
     private SealManager sealManager;
     private AdminGuiManager adminGuiManager;
+    private GoblinWeaponManager goblinWeaponManager;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -76,6 +78,9 @@ public final class Mythof5 extends JavaPlugin {
 
         aspectManager = new AspectManager(this, messages, chronicleManager, relicManager, omenManager);
         aspectManager.load();
+
+        goblinWeaponManager = new GoblinWeaponManager(this, messages, aspectManager);
+        aspectManager.setWeaponManager(goblinWeaponManager);
 
         inheritManager = new InheritManager(this, messages, aspectManager);
         inheritManager.load();
@@ -131,6 +136,7 @@ public final class Mythof5 extends JavaPlugin {
                 doubleJumpEnabled, doubleJumpVerticalVelocity, doubleJumpForwardMultiplier);
         pluginManager.registerEvents(playerListener, this);
         pluginManager.registerEvents(inheritManager, this);
+        pluginManager.registerEvents(goblinWeaponManager, this);
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
         pluginManager.registerEvents(new HunterListener(hunterManager), this);
         pluginManager.registerEvents(sealManager, this);

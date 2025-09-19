@@ -241,6 +241,9 @@ goblin:
     passive: "패시브 스킬은 명령어로 사용할 수 없습니다."
     cooldown: "아직 식지 않았습니다! 남은 시간: {time}"
     unknown: "해당 스킬은 존재하지 않습니다."
+    unassigned: "이 입력에는 연결된 기술이 없습니다."
+  weapon:
+    no_power: "도깨비의 힘이 사라져 무기를 다룰 수 없습니다."
   skills:
     header: "===== 도깨비 스킬 사전 ====="
     aspect: "• {aspect} (코드: {key})"
@@ -429,6 +432,7 @@ error:
   flame:
     protected: "아직 주인의 보호가 끝나지 않은 도깨비불입니다."
   weapon:
+    no_power: "도깨비의 힘이 사라져 무기를 다룰 수 없습니다."
     not_allowed: "이 무기에는 도깨비불을 봉인할 수 없습니다."
   already_sealed: "이미 도깨비 힘이 봉인된 무기입니다."
   not_allowed: "이 행동을 수행할 수 없습니다."
