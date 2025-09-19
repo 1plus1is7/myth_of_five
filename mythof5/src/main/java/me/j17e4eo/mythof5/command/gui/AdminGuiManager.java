@@ -457,9 +457,13 @@ public class AdminGuiManager implements Listener {
                 }
             }
             case ACTION_OPEN_INHERIT -> {
-                AdminAction next = parseAdminAction(value, AdminAction.NONE);
-                if (next == AdminAction.INHERIT_SET || next == AdminAction.INHERIT_CLEAR) {
-                    openAspectSelectMenu(player, next);
+                if (value == null) {
+                    openInheritMenu(player);
+                } else {
+                    AdminAction next = parseAdminAction(value, AdminAction.NONE);
+                    if (next == AdminAction.INHERIT_SET || next == AdminAction.INHERIT_CLEAR) {
+                        openAspectSelectMenu(player, next);
+                    }
                 }
             }
             case ACTION_OPEN_ASPECT -> {
