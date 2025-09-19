@@ -5,6 +5,8 @@ import me.j17e4eo.mythof5.inherit.AspectManager;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinSkill;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinSkillCategory;
+import me.j17e4eo.mythof5.inherit.skilltree.SkillTreeManager;
+import me.j17e4eo.mythof5.inherit.skilltree.SkillUpgrade;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -24,10 +26,12 @@ public class GoblinCommand implements CommandExecutor, TabCompleter {
 
     private final AspectManager aspectManager;
     private final Messages messages;
+    private final SkillTreeManager skillTreeManager;
 
-    public GoblinCommand(AspectManager aspectManager, Messages messages) {
+    public GoblinCommand(AspectManager aspectManager, Messages messages, SkillTreeManager skillTreeManager) {
         this.aspectManager = aspectManager;
         this.messages = messages;
+        this.skillTreeManager = skillTreeManager;
     }
 
     @Override
@@ -114,6 +118,37 @@ public class GoblinCommand implements CommandExecutor, TabCompleter {
                 aspectManager.attemptForgeRitual(player);
                 return true;
             }
+            case "tree" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(messages.format("commands.common.player_only"));
+                    return true;
+                }
+                showSkillTree(player, args);
+                return true;
+            }
+            case "upgrade" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(messages.format("commands.common.player_only"));
+                    return true;
+                }
+                if (args.length < 3) {
+                    sender.sendMessage(messages.format("goblin.skilltree.usage"));
+                    return true;
+                }
+                handleUpgrade(player, args[1], args[2]);
+                return true;
+            }
+            case "points" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(messages.format("commands.common.player_only"));
+                    return true;
+                }
+                int points = skillTreeManager.getAvailablePoints(player.getUniqueId());
+                player.sendMessage(messages.format("goblin.skilltree.points", Map.of(
+                        "points", String.valueOf(points)
+                )));
+                return true;
+            }
             case "list" -> {
                 listAspects(sender);
                 return true;
@@ -173,6 +208,63 @@ public class GoblinCommand implements CommandExecutor, TabCompleter {
                 )));
             }
         }
+    }
+
+    private void showSkillTree(Player player, String[] args) {
+        List<GoblinAspect> aspects = new ArrayList<>();
+        if (args.length >= 2) {
+            GoblinAspect aspect = GoblinAspect.fromKey(args[1]);
+            if (aspect == null) {
+                player.sendMessage(messages.format("goblin.aspect.unknown"));
+                return;
+            }
+            aspects.add(aspect);
+        } else {
+            aspects.addAll(aspectManager.getAspects(player.getUniqueId()));
+            if (aspects.isEmpty()) {
+                aspects.addAll(List.of(GoblinAspect.values()));
+            }
+        }
+        for (GoblinAspect aspect : aspects) {
+            player.sendMessage(messages.format("goblin.skilltree.title", Map.of(
+                    "aspect", aspect.getDisplayName())));
+            for (String line : skillTreeManager.describeTree(player, aspect)) {
+                player.sendMessage(line);
+            }
+        }
+    }
+
+    private void handleUpgrade(Player player, String skillKey, String upgradeId) {
+        String key = skillKey.toLowerCase(Locale.ROOT);
+        GoblinAspect aspect = null;
+        GoblinSkill targetSkill = null;
+        for (GoblinAspect candidate : GoblinAspect.values()) {
+            for (GoblinSkill skill : candidate.getSkills()) {
+                if (skill.getKey().equalsIgnoreCase(key)) {
+                    aspect = candidate;
+                    targetSkill = skill;
+                    break;
+                }
+            }
+            if (targetSkill != null) {
+                break;
+            }
+        }
+        if (aspect == null || targetSkill == null) {
+            player.sendMessage(messages.format("goblin.skilltree.unknown_skill"));
+            return;
+        }
+        if (!aspectManager.getAspects(player.getUniqueId()).contains(aspect)) {
+            player.sendMessage(messages.format("goblin.skilltree.aspect_missing", Map.of(
+                    "aspect", aspect.getDisplayName())));
+            return;
+        }
+        Optional<SkillUpgrade> upgrade = skillTreeManager.findUpgrade(targetSkill.getKey(), upgradeId);
+        if (upgrade.isEmpty()) {
+            player.sendMessage(messages.format("goblin.skilltree.unknown_upgrade"));
+            return;
+        }
+        skillTreeManager.selectUpgrade(player, targetSkill, upgrade.get());
     }
 
     private void showInfo(Player player) {

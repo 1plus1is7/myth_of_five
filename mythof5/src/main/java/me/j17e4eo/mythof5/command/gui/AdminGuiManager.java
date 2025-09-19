@@ -712,7 +712,7 @@ public class AdminGuiManager implements Listener {
 
     private void showBalance(Player player) {
         player.sendMessage(Component.text("==== 균형 지표 ====", NamedTextColor.GOLD));
-        for (String line : balanceTable.format()) {
+        for (String line : balanceTable.formatSummary()) {
             player.sendMessage(Component.text(line, NamedTextColor.GRAY));
         }
     }
