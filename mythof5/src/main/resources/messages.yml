@@ -230,6 +230,9 @@ goblin:
     - "{label} info"
     - "{label} skills [갈래]"
     - "{label} skill <스킬코드>"
+    - "{label} tree [갈래]"
+    - "{label} upgrade <스킬코드> <강화ID>"
+    - "{label} points"
     - "{label} progress"
     - "{label} share <갈래> <플레이어>"
     - "{label} reclaim <갈래> <플레이어>"
@@ -274,6 +277,27 @@ goblin:
     none: "아직 계승자가 없다"
   passive:
     scent: "주변 기척 {count}건이 감지되었다."
+    scent_reader: "주변의 발자취가 일렁이며 기척을 드러낸다."
+    stagger_guard: "경직의 충격이 사라지고 몸이 다시 움직이기 시작한다!"
+  skilltree:
+    usage: "사용법: /goblin upgrade <스킬코드> <강화ID>"
+    header: "남은 강화 포인트: {points}"
+    skill: "- {name} ({key})"
+    none: "  · 아직 선택한 강화가 없습니다."
+    option: "  · {id}: {name} (비용 {cost}) - {desc}"
+    already: "이미 해당 스킬의 강화를 선택했습니다."
+    not_enough: "강화 포인트가 부족합니다."
+    unknown_skill: "해당 스킬을 찾을 수 없습니다."
+    aspect_missing: "{aspect}의 힘을 계승하거나 공유받아야 합니다."
+    unknown_upgrade: "해당 강화는 존재하지 않습니다."
+    unlocked: "{skill}의 {upgrade} 강화를 개방했습니다!"
+    gain: "강화 포인트 {points}점을 획득했습니다! ({reason})"
+    points: "현재 강화 포인트: {points}"
+    title: "[{aspect}] 스킬 트리"
+    reason:
+      unknown: "기록되지 않은 공적"
+      boss: "{boss} 격파"
+      relic: "설화 {relic} 회수"
   progress:
     header: "===== 다섯 갈래 진행도 ====="
     power:
@@ -345,6 +369,7 @@ relic:
     - "{label} help"
     - "{label} list"
     - "{label} fusions"
+    - "{label} forge"
   obtain:
     self: "새 설화 '{relic}'을(를) 발견했다! 효과: {effect}"
     broadcast: "[방송] {player}가 설화 '{relic}'을(를) 획득했다!"
@@ -356,6 +381,12 @@ relic:
     none: "알려진 설화 융합이 없습니다."
   none: "보유한 설화가 없습니다."
   unknown: "알 수 없는 설화입니다."
+  fragment:
+    drop: "희미한 설화 조각이 떨어졌다: {type}"
+    lore: "도깨비 장인에게 가져가면 새로운 설화를 만들 수 있을 것 같다."
+    forge_success: "설화 조각이 공명하여 {relic}(이)가 탄생했다! {desc}"
+    forge_fail: "필요한 설화 조각 조합을 아직 모으지 못했다."
+    broadcast: "[방송] {player}가 설화 조각을 모아 {relic}(을)를 완성했다!"
 chronicle:
   empty: "아직 연대기에 기록된 사건이 없다."
   default:
@@ -382,6 +413,8 @@ chronicle:
     fusion: "{player}, 설화를 얽어 '{relic}'을 빚어냈도다."
   skill:
     use: "{player}, {aspect}의 권능 '{skill}'을 펼쳤도다."
+    point: "{player}, 도깨비 기술을 연마해 강화 포인트 {points}을 얻었도다. ({reason})"
+    upgrade: "{player}, '{skill}'의 강화 '{upgrade}'을 개방하였도다."
   omen: "{stage}의 전조가 드러났으니, {reason}라 하도다."
   inherit_loss: "{player}, {aspect}과의 인연이 끊어졌도다."
   hunter:
@@ -418,6 +451,16 @@ commands.admin:
   omen_usage: "사용법: /myth admin omen <STARSHIFT|GHOST_FIRE|SKYBREAK> [사유]"
   omen_unknown: "알 수 없는 전조 단계입니다."
   omen_triggered: "{stage} 전조를 호출했습니다. 사유: {reason}"
+  balance_hint: "/myth admin balance report 또는 export 로 상세 통계를 확인하세요."
+  balance_export: "밸런스 리포트를 {path} 파일로 내보냈습니다."
+  balance_export_fail: "밸런스 리포트 내보내기에 실패했습니다."
+  balance_unknown: "알 수 없는 밸런스 하위 명령입니다."
+
+events:
+  balance_collapse:
+    start: "{skill}이(가) 과도하게 사용되며 균형 붕괴가 시작된다! 몬스터가 분노한다."
+  lore_fracture:
+    start: "설화의 균열이 일어나 조각이 흩어진다! {relic}의 전설이 요동친다."
 omen:
   starshift: "[전조] 별자리가 뒤틀리며 속삭임이 들려온다."
   ghost_fire: "[전조] 도깨비불이 들판을 가득 메우기 시작한다."

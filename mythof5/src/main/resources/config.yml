@@ -43,6 +43,9 @@ movement:
     enabled: true
     vertical_velocity: 0.9
     forward_multiplier: 0.6
+relic:
+  fragments:
+    drop_chance: 0.01
 hunter:
   release:
     low: 0.0052

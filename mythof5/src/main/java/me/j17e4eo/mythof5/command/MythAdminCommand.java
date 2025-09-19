@@ -29,6 +29,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -108,7 +110,7 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             case "relic" -> { handleRelic(sender, tail); yield true; }
             case "chronicle" -> { handleChronicle(sender, tail); yield true; }
             case "omen" -> { handleOmen(sender, tail); yield true; }
-            case "balance" -> { handleBalance(sender); yield true; }
+            case "balance" -> { handleBalance(sender, tail); yield true; }
             default -> { sendUsage(sender, label); yield true; }
         };
     }
@@ -347,10 +349,34 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         )), NamedTextColor.GOLD));
     }
 
-    private void handleBalance(CommandSender sender) {
-        for (String line : balanceTable.format()) {
-            sender.sendMessage(line);
+    private void handleBalance(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            for (String line : balanceTable.formatSummary()) {
+                sender.sendMessage(line);
+            }
+            sender.sendMessage(messages.format("commands.admin.balance_hint"));
+            return;
         }
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        if (sub.equals("report")) {
+            for (String line : balanceTable.buildReport()) {
+                sender.sendMessage(line);
+            }
+            return;
+        }
+        if (sub.equals("export")) {
+            try {
+                File file = balanceTable.exportCsv(plugin.getDataFolder());
+                sender.sendMessage(messages.format("commands.admin.balance_export", Map.of(
+                        "path", file.getName()
+                )));
+            } catch (IOException e) {
+                sender.sendMessage(messages.format("commands.admin.balance_export_fail"));
+                plugin.getLogger().warning("Failed to export balance CSV: " + e.getMessage());
+            }
+            return;
+        }
+        sender.sendMessage(messages.format("commands.admin.balance_unknown"));
     }
 
     private void handleGuide(CommandSender sender, String label) {

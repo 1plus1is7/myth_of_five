@@ -7,9 +7,17 @@ import me.j17e4eo.mythof5.config.Messages;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinSkill;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinSkillCategory;
+import me.j17e4eo.mythof5.inherit.skill.PassiveTrigger;
+import me.j17e4eo.mythof5.inherit.skill.SkillEnvironmentTag;
+import me.j17e4eo.mythof5.inherit.skill.SkillSpec;
+import me.j17e4eo.mythof5.inherit.skill.SkillStatusEffect;
+import me.j17e4eo.mythof5.inherit.skilltree.SkillTreeManager;
+import me.j17e4eo.mythof5.hunter.HunterManager;
+import me.j17e4eo.mythof5.balance.BalanceTable;
 import me.j17e4eo.mythof5.omens.OmenManager;
 import me.j17e4eo.mythof5.omens.OmenStage;
 import me.j17e4eo.mythof5.relic.RelicManager;
+import me.j17e4eo.mythof5.meta.MetaEventManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -21,6 +29,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Campfire;
 import org.bukkit.attribute.Attribute;
@@ -32,7 +41,13 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -42,6 +57,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
+import org.bukkit.Location;
 
 import java.io.File;
 import java.io.IOException;
@@ -65,7 +81,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Handles the five goblin aspects including inheritance, sharing and skill
  * execution.
  */
-public class AspectManager {
+public class AspectManager implements Listener {
 
     private static final double HEALTH_PENALTY_PER_SHARE = 2.0D;
 
@@ -74,6 +90,9 @@ public class AspectManager {
     private final ChronicleManager chronicleManager;
     private final RelicManager relicManager;
     private final OmenManager omenManager;
+    private final SkillTreeManager skillTreeManager;
+    private final BalanceTable balanceTable;
+    private final MetaEventManager metaEventManager;
     private final Map<GoblinAspect, AspectProfile> profiles = new EnumMap<>(GoblinAspect.class);
     private final Map<GoblinAspect, NamespacedKey> healthModifierKeys = new EnumMap<>(GoblinAspect.class);
     private final Map<UUID, Map<String, Long>> cooldowns = new ConcurrentHashMap<>();
@@ -94,17 +113,24 @@ public class AspectManager {
     private final Map<UUID, Double> originalMaxHealth = new HashMap<>();
     private final Map<UUID, Set<GoblinAspect>> activeInheritorAspects = new HashMap<>();
     private final Map<UUID, Double> pendingMaxHealthRestores = new HashMap<>();
+    private final Map<GoblinAspect, Map<UUID, Long>> passiveCooldowns = new EnumMap<>(GoblinAspect.class);
     private GoblinWeaponManager weaponManager;
+    private HunterManager hunterManager;
     private File dataFile;
     private YamlConfiguration dataConfig;
 
     public AspectManager(Mythof5 plugin, Messages messages, ChronicleManager chronicleManager,
-                         RelicManager relicManager, OmenManager omenManager) {
+                         RelicManager relicManager, OmenManager omenManager,
+                         SkillTreeManager skillTreeManager, BalanceTable balanceTable,
+                         MetaEventManager metaEventManager) {
         this.plugin = plugin;
         this.messages = messages;
         this.chronicleManager = chronicleManager;
         this.relicManager = relicManager;
         this.omenManager = omenManager;
+        this.skillTreeManager = skillTreeManager;
+        this.balanceTable = balanceTable;
+        this.metaEventManager = metaEventManager;
         this.legendaryWeaponKey = new NamespacedKey(plugin, "legendary_summon");
         FileConfiguration config = plugin.getConfig();
         powerBossKeywords = new HashSet<>();
@@ -138,11 +164,16 @@ public class AspectManager {
         for (GoblinAspect aspect : GoblinAspect.values()) {
             profiles.put(aspect, new AspectProfile());
             healthModifierKeys.put(aspect, new NamespacedKey(plugin, "aspect_penalty_" + aspect.getKey()));
+            passiveCooldowns.put(aspect, new HashMap<>());
         }
     }
 
     public void setWeaponManager(GoblinWeaponManager weaponManager) {
         this.weaponManager = weaponManager;
+    }
+
+    public void setHunterManager(HunterManager hunterManager) {
+        this.hunterManager = hunterManager;
     }
 
     public void load() {
@@ -265,15 +296,32 @@ public class AspectManager {
 
     public void handlePlayerQuit(Player player) {
         cancelScentTask(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+        for (Map<UUID, Long> map : passiveCooldowns.values()) {
+            map.remove(uuid);
+        }
     }
 
     public void handleDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
+        boolean killerIsHunter = killer != null && hunterManager != null
+                && hunterManager.findProfile(killer.getUniqueId()).map(profile -> profile.isEngraved()).orElse(false);
+        boolean victimIsHunter = hunterManager != null
+                && hunterManager.findProfile(victim.getUniqueId()).map(profile -> profile.isEngraved()).orElse(false);
+        boolean killerIsInheritor = killer != null && isInheritorOfAnyAspect(killer.getUniqueId());
+        if (victimIsHunter && killerIsInheritor) {
+            balanceTable.recordBattle(false);
+        }
+        boolean recordedHunterWin = false;
         for (GoblinAspect aspect : GoblinAspect.values()) {
             AspectProfile profile = profiles.get(aspect);
             if (!profile.isInheritor(victim.getUniqueId())) {
                 continue;
+            }
+            if (killerIsHunter && !recordedHunterWin) {
+                balanceTable.recordBattle(true);
+                recordedHunterWin = true;
             }
             if (killer != null && !killer.getUniqueId().equals(victim.getUniqueId())) {
                 setInheritor(aspect, killer, true, messages.format("chronicle.inherit.transfer", Map.of(
@@ -309,6 +357,10 @@ public class AspectManager {
                     "aspect", GoblinAspect.POWER.getDisplayName(),
                     "method", "현신 격파"
             )));
+            skillTreeManager.addPoints(killer.getUniqueId(), 2,
+                    messages.format("goblin.skilltree.reason.boss", Map.of(
+                            "boss", bossName
+                    )));
         }
     }
 
@@ -696,74 +748,115 @@ public class AspectManager {
 
     private void executeSkill(GoblinAspect aspect, GoblinSkill skill, Player player, boolean inheritor) {
         double effectiveness = inheritor ? 1.0D : skill.getSharedEffectiveness();
+        String upgrade = skillTreeManager.getSelectedUpgrade(player.getUniqueId(), skill.getKey());
         switch (skill.getKey()) {
-            case "rush_strike" -> performRushStrike(player, effectiveness);
-            case "pursuit_mark" -> performPursuitMark(player, effectiveness);
-            case "vision_twist" -> performVisionTwist(player, effectiveness);
-            case "veil_break" -> performVeilBreak(player, effectiveness);
-            case "ember_boost" -> performEmberBoost(player, effectiveness);
-            case "ember_recovery" -> performEmberRecovery(player, effectiveness);
-            case "weapon_overdrive" -> performWeaponOverdrive(player, effectiveness);
-            case "legendary_summon" -> performLegendarySummon(player, effectiveness);
+            case "rush_strike" -> performRushStrike(player, skill, effectiveness, upgrade);
+            case "pursuit_mark" -> performPursuitMark(player, skill, effectiveness, upgrade);
+            case "vision_twist" -> performVisionTwist(player, skill, effectiveness, upgrade);
+            case "veil_break" -> performVeilBreak(player, skill, effectiveness, upgrade);
+            case "ember_boost" -> performEmberBoost(player, skill, effectiveness, upgrade);
+            case "ember_recovery" -> performEmberRecovery(player, skill, effectiveness, upgrade);
+            case "weapon_overdrive" -> performWeaponOverdrive(player, skill, effectiveness, upgrade);
+            case "legendary_summon" -> performLegendarySummon(player, skill, effectiveness, upgrade);
             default -> player.sendMessage(messages.format("goblin.skill.unknown"));
         }
+        balanceTable.recordSkillUsage(aspect, skill, upgrade, inheritor);
+        metaEventManager.recordSkillUse(player, skill);
     }
 
-    private void performRushStrike(Player player, double effectiveness) {
+    private void performRushStrike(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
         Vector direction = player.getLocation().getDirection();
         if (direction.lengthSquared() == 0) {
             direction = new Vector(0, 0, 0);
         }
-        Vector velocity = direction.normalize().multiply(1.4 * effectiveness);
-        velocity.setY(Math.max(0.35 * effectiveness, 0.25));
+        double rangeBonus = "range".equalsIgnoreCase(upgrade) ? 0.6 : 0.0;
+        Vector velocity = direction.normalize().multiply(1.4 * effectiveness + rangeBonus);
+        velocity.setY(Math.max(0.35 * effectiveness, 0.25) + ("range".equalsIgnoreCase(upgrade) ? 0.1 : 0.0));
         player.setVelocity(velocity);
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.2F, 0.75F);
         player.getWorld().spawnParticle(Particle.SWEEP_ATTACK, player.getLocation().add(0, 1, 0), 12, 0.6, 0.2, 0.6, 0.01);
-        double damage = 6.0 * effectiveness + 4.0;
-        double radius = 2.5 + effectiveness;
+        SkillSpec spec = skill.getSpec().orElse(null);
+        double baseDamage = spec != null ? spec.getBaseDamage() * effectiveness : 6.0 * effectiveness + 4.0;
+        if ("range".equalsIgnoreCase(upgrade)) {
+            baseDamage *= 1.15;
+        }
+        double radius = 2.5 + effectiveness + rangeBonus;
         LocationSnapshot snapshot = LocationSnapshot.of(player);
+        final double explosionRadius = radius;
+        final double scheduledDamage = baseDamage;
+        final double knockEffectiveness = effectiveness;
+        final SkillSpec resolvedSpec = spec;
+        final Player caster = player;
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            Collection<Entity> nearby = snapshot.world().getNearbyEntities(snapshot.location(), radius, radius, radius);
+            Collection<Entity> nearby = snapshot.world().getNearbyEntities(snapshot.location(), explosionRadius, explosionRadius, explosionRadius);
             for (Entity entity : nearby) {
-                if (entity instanceof LivingEntity living && !living.getUniqueId().equals(player.getUniqueId())) {
-                    living.damage(damage, player);
-                    Vector knock = living.getLocation().toVector().subtract(player.getLocation().toVector()).normalize().multiply(0.5 * effectiveness);
+                if (entity instanceof LivingEntity living && !living.getUniqueId().equals(caster.getUniqueId())) {
+                    living.damage(scheduledDamage, caster);
+                    Vector knock = living.getLocation().toVector().subtract(caster.getLocation().toVector()).normalize().multiply(0.5 * knockEffectiveness);
                     living.setVelocity(living.getVelocity().add(knock));
+                    applyStatusEffects(living, resolvedSpec, knockEffectiveness, upgrade);
                 }
             }
             snapshot.world().spawnParticle(Particle.EXPLOSION, snapshot.location(), 24, 0.6, 0.4, 0.6, 0.05);
+            if (resolvedSpec != null) {
+                applyEnvironmentEffects(caster, resolvedSpec, upgrade);
+            }
         }, 8L);
     }
 
-    private void performPursuitMark(Player player, double effectiveness) {
+    private void performPursuitMark(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
         Entity targetEntity = player.getTargetEntity(25);
         if (!(targetEntity instanceof LivingEntity target) || target.getUniqueId().equals(player.getUniqueId())) {
             player.sendMessage(messages.format("goblin.skill.no_target"));
             return;
         }
+        SkillSpec spec = skill.getSpec().orElse(null);
         int duration = (int) Math.round(200 * effectiveness + 60);
         target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, duration, 0, false, true, true));
         target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, (int) Math.round(60 * effectiveness + 40), 0, false, true, true));
-        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, duration, effectiveness >= 0.9 ? 2 : 1, false, true, true));
+        if ("rupture".equalsIgnoreCase(upgrade)) {
+            target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, duration, 1, false, true, true));
+        }
+        int speedLevel = effectiveness >= 0.9 ? 2 : 1;
+        if ("sprint".equalsIgnoreCase(upgrade)) {
+            speedLevel += 1;
+        }
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, duration, speedLevel, false, true, true));
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 0.8F, 1.4F);
         player.getWorld().spawnParticle(Particle.END_ROD, target.getLocation().add(0, 1, 0), 20, 0.3, 0.7, 0.3, 0.01);
+        applyStatusEffects(target, spec, effectiveness, upgrade);
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
     }
 
-    private void performVisionTwist(Player player, double effectiveness) {
+    private void performVisionTwist(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
+        SkillSpec spec = skill.getSpec().orElse(null);
         double radius = 8.0 + 4.0 * effectiveness;
+        if ("chill".equalsIgnoreCase(upgrade)) {
+            radius += 2.0;
+        }
         int blindness = (int) Math.round(80 * effectiveness + 60);
         int confusion = (int) Math.round(140 * effectiveness + 80);
+        if ("dread".equalsIgnoreCase(upgrade)) {
+            blindness += 40;
+        }
         for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), radius, radius, radius)) {
             if (entity instanceof LivingEntity target && !target.getUniqueId().equals(player.getUniqueId())) {
                 target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, blindness, 0, false, true, true));
                 target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, confusion, 0, false, true, true));
+                applyStatusEffects(target, spec, effectiveness, upgrade);
             }
         }
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1.0F, 0.6F);
         player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1, 0), 60, radius / 6, 1.0, radius / 6, 0.02);
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
     }
 
-    private void performVeilBreak(Player player, double effectiveness) {
+    private void performVeilBreak(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
+        SkillSpec spec = skill.getSpec().orElse(null);
         double radius = 12.0 * effectiveness + 6.0;
         int duration = (int) Math.round(120 * effectiveness + 40);
         for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), radius, radius, radius)) {
@@ -772,14 +865,29 @@ public class AspectManager {
                     target.removePotionEffect(PotionEffectType.INVISIBILITY);
                 }
                 target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, duration, 0, false, true, true));
+                if ("flare".equalsIgnoreCase(upgrade)) {
+                    target.damage(4.0 * effectiveness, player);
+                }
+                applyStatusEffects(target, spec, effectiveness, upgrade);
+                if ("mark".equalsIgnoreCase(upgrade)) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, duration, 2, true, true, true));
+                    target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, duration, 1, true, true, true));
+                }
             }
         }
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0F, 1.2F);
         player.getWorld().spawnParticle(Particle.INSTANT_EFFECT, player.getLocation().add(0, 1, 0), 40, radius / 6, 0.8, radius / 6, 0.01);
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
     }
 
-    private void performEmberBoost(Player player, double effectiveness) {
+    private void performEmberBoost(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
+        SkillSpec spec = skill.getSpec().orElse(null);
         double radius = 10.0 + 4.0 * effectiveness;
+        if ("wildfire".equalsIgnoreCase(upgrade)) {
+            radius += 2.0;
+        }
         int duration = (int) Math.round(200 * effectiveness + 100);
         int strengthLevel = effectiveness >= 0.95 ? 1 : 0;
         for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), radius, radius, radius)) {
@@ -787,13 +895,20 @@ public class AspectManager {
                 target.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, duration, strengthLevel, false, true, true));
                 target.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, duration, 0, false, true, true));
                 target.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, duration, 0, false, true, true));
+                applyStatusEffects(target, spec, effectiveness, upgrade);
+                if ("ward".equalsIgnoreCase(upgrade)) {
+                    target.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, duration, 1, true, true, true));
+                }
             }
         }
         player.getWorld().playSound(player.getLocation(), Sound.ITEM_FIRECHARGE_USE, 1.0F, 1.0F);
         player.getWorld().spawnParticle(Particle.FLAME, player.getLocation().add(0, 1, 0), 120, radius / 5, 1.0, radius / 5, 0.05);
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
     }
 
-    private void performEmberRecovery(Player player, double effectiveness) {
+    private void performEmberRecovery(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
         double healAmount = 6.0 * effectiveness + 2.0;
         AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth != null) {
@@ -803,21 +918,49 @@ public class AspectManager {
         player.removePotionEffect(PotionEffectType.POISON);
         player.removePotionEffect(PotionEffectType.WITHER);
         int duration = (int) Math.round(80 * effectiveness + 40);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, duration, effectiveness >= 0.9 ? 1 : 0, false, true, true));
+        int regenLevel = effectiveness >= 0.9 ? 1 : 0;
+        if ("purify".equalsIgnoreCase(upgrade)) {
+            player.removePotionEffect(PotionEffectType.BLINDNESS);
+            player.removePotionEffect(PotionEffectType.SLOWNESS);
+            regenLevel++;
+        }
+        player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, duration, regenLevel, false, true, true));
+        SkillSpec spec = skill.getSpec().orElse(null);
+        applyStatusEffects(player, spec, effectiveness, upgrade);
+        if ("ember_wall".equalsIgnoreCase(upgrade)) {
+            createEmberWall(player.getLocation(), 4.0);
+        }
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_CAMPFIRE_CRACKLE, 1.0F, 1.2F);
         player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.02);
     }
 
-    private void performWeaponOverdrive(Player player, double effectiveness) {
+    private void performWeaponOverdrive(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
+        SkillSpec spec = skill.getSpec().orElse(null);
         int duration = (int) Math.round(200 * effectiveness + 80);
+        if ("forge_heat".equalsIgnoreCase(upgrade)) {
+            duration += 60;
+        }
         int strengthLevel = effectiveness >= 0.95 ? 1 : 0;
         player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, duration, strengthLevel, false, true, true));
         player.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, duration, 0, false, true, true));
+        if ("impact".equalsIgnoreCase(upgrade)) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, duration, 0, true, true, true));
+        }
+        applyStatusEffects(player, spec, effectiveness, upgrade);
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_SMITHING_TABLE_USE, 1.0F, 1.0F);
         player.getWorld().spawnParticle(Particle.CRIT, player.getLocation().add(0, 1, 0), 50, 0.5, 0.7, 0.5, 0.1);
+        if ("impact".equalsIgnoreCase(upgrade)) {
+            player.getWorld().spawnParticle(Particle.EXPLOSION, player.getLocation(), 20, 1.2, 0.2, 1.2, 0.05);
+        }
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
     }
 
-    private void performLegendarySummon(Player player, double effectiveness) {
+    private void performLegendarySummon(Player player, GoblinSkill skill, double effectiveness, String upgrade) {
         ItemStack sword = new ItemStack(org.bukkit.Material.NETHERITE_SWORD);
         ItemMeta meta = sword.getItemMeta();
         if (meta != null) {
@@ -830,11 +973,27 @@ public class AspectManager {
             sword.setItemMeta(meta);
         }
         player.getInventory().addItem(sword);
+        SkillSpec spec = skill.getSpec().orElse(null);
         int duration = (int) Math.round(200 * effectiveness + 160);
+        if ("eternal".equalsIgnoreCase(upgrade)) {
+            duration += 80;
+        }
         player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, duration, 1, false, true, true));
         player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.8F, 1.1F);
         player.getWorld().spawnParticle(Particle.LAVA, player.getLocation().add(0, 1, 0), 80, 0.6, 1.0, 0.6, 0.08);
+        applyStatusEffects(player, spec, effectiveness, upgrade);
+        if (spec != null) {
+            applyEnvironmentEffects(player, spec, upgrade);
+        }
         Bukkit.getScheduler().runTaskLater(plugin, () -> removeLegendaryWeapon(player), duration);
+        if ("eruption".equalsIgnoreCase(upgrade)) {
+            player.getWorld().spawnParticle(Particle.EXPLOSION, player.getLocation(), 1);
+            for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), 4, 4, 4)) {
+                if (entity instanceof LivingEntity living && !living.getUniqueId().equals(player.getUniqueId())) {
+                    living.damage(8.0 * effectiveness, player);
+                }
+            }
+        }
     }
 
     private void removeLegendaryWeapon(Player player) {
@@ -863,6 +1022,15 @@ public class AspectManager {
         }
         ItemMeta meta = stack.getItemMeta();
         return meta != null && meta.getPersistentDataContainer().has(legendaryWeaponKey, org.bukkit.persistence.PersistentDataType.BYTE);
+    }
+
+    private boolean isInheritorOfAnyAspect(UUID uuid) {
+        for (AspectProfile profile : profiles.values()) {
+            if (profile.isInheritor(uuid)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void cleanupLegendaryWeapons(PlayerInventory inventory) {
@@ -913,6 +1081,289 @@ public class AspectManager {
         return seconds + "s";
     }
 
+    private void applyStatusEffects(LivingEntity target, SkillSpec spec, double effectiveness, String upgrade) {
+        if (spec == null) {
+            return;
+        }
+        for (SkillStatusEffect status : spec.getStatuses()) {
+            int duration = status.getDurationTicks();
+            if (metaEventManager.isBalanceCollapseActive()) {
+                duration = (int) Math.round(duration * 1.25D);
+            }
+            switch (status.getType()) {
+                case BLEED -> applyBleed(target, effectiveness, duration, status.getAmplifier(), upgrade);
+                case STUN -> target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, duration, 6, true, true, true));
+                case BURN -> target.setFireTicks(Math.max(target.getFireTicks(), duration));
+                case SLOW -> target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, duration, status.getAmplifier(), true, true, true));
+                case WEAKEN -> target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, duration, status.getAmplifier(), true, true, true));
+                case SHIELD -> {
+                    if (target instanceof Player player) {
+                        player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, duration, status.getAmplifier(), true, true, true));
+                    }
+                }
+                default -> { }
+            }
+        }
+    }
+
+    private void applyBleed(LivingEntity target, double effectiveness, int durationTicks, int amplifier, String upgrade) {
+        double damage = Math.max(1.0, 1.5 * effectiveness + amplifier);
+        if ("bleed".equalsIgnoreCase(upgrade)) {
+            damage *= 1.5;
+        }
+        int repeats = Math.max(1, durationTicks / 20);
+        final double damagePerTick = damage;
+        new BukkitRunnable() {
+            int count = 0;
+            @Override
+            public void run() {
+                if (count++ >= repeats || target.isDead()) {
+                    cancel();
+                    return;
+                }
+                target.damage(damagePerTick);
+                target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, target.getLocation().add(0, 0.5, 0), 6, 0.2, 0.3, 0.2, 0.02);
+            }
+        }.runTaskTimer(plugin, 20L, 20L);
+    }
+
+    private void applyEnvironmentEffects(Player player, SkillSpec spec, String upgrade) {
+        if (spec == null) {
+            return;
+        }
+        for (SkillEnvironmentTag tag : spec.getEnvironmentTags()) {
+            switch (tag) {
+                case BREAK_BLOCKS -> shatterBlocks(player.getLocation(), 3);
+                case IGNITE_BLOCKS -> igniteArea(player.getLocation(), 4);
+                case FREEZE_LIQUIDS -> freezeLiquids(player.getLocation(), 5);
+                case SUMMON_SUPPORT -> spawnSupportBurst(player.getLocation());
+                case CLEANSING_FIELD -> cleanseArea(player.getLocation(), 5);
+                default -> { }
+            }
+        }
+        if ("wildfire".equalsIgnoreCase(upgrade)) {
+            igniteArea(player.getLocation(), 3);
+        }
+    }
+
+    private void shatterBlocks(Location origin, int radius) {
+        World world = origin.getWorld();
+        if (world == null) {
+            return;
+        }
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -1; y <= 1; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    Block block = world.getBlockAt(origin.clone().add(x, y, z));
+                    if (!block.getType().isAir() && block.getType().getHardness() <= 1.0F) {
+                        block.breakNaturally();
+                    }
+                }
+            }
+        }
+    }
+
+    private void igniteArea(Location origin, int radius) {
+        World world = origin.getWorld();
+        if (world == null) {
+            return;
+        }
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                Block block = world.getBlockAt(origin.clone().add(x, 0, z));
+                Block above = block.getRelative(BlockFace.UP);
+                if (!block.getType().isAir() && above.getType().isAir()) {
+                    above.setType(Material.FIRE);
+                }
+            }
+        }
+    }
+
+    private void freezeLiquids(Location origin, int radius) {
+        World world = origin.getWorld();
+        if (world == null) {
+            return;
+        }
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                Block block = world.getBlockAt(origin.clone().add(x, -1, z));
+                if (block.getType() == Material.WATER) {
+                    block.setType(Material.FROSTED_ICE);
+                }
+                if (block.getType() == Material.LAVA) {
+                    block.setType(Material.OBSIDIAN);
+                }
+            }
+        }
+    }
+
+    private void spawnSupportBurst(Location location) {
+        World world = location.getWorld();
+        if (world == null) {
+            return;
+        }
+        world.spawnParticle(Particle.INSTANT_EFFECT, location.add(0, 1, 0), 40, 1.2, 0.4, 1.2, 0.05);
+        world.playSound(location, Sound.BLOCK_BEACON_ACTIVATE, 0.8F, 1.2F);
+    }
+
+    private void cleanseArea(Location location, int radius) {
+        World world = location.getWorld();
+        if (world == null) {
+            return;
+        }
+        for (Entity entity : world.getNearbyEntities(location, radius, radius, radius)) {
+            if (entity instanceof Player target) {
+                target.setFireTicks(0);
+                target.removePotionEffect(PotionEffectType.POISON);
+                target.removePotionEffect(PotionEffectType.WITHER);
+            }
+        }
+    }
+
+    private void createEmberWall(Location center, double radius) {
+        World world = center.getWorld();
+        if (world == null) {
+            return;
+        }
+        for (int i = 0; i < 16; i++) {
+            double angle = (Math.PI * 2 * i) / 16;
+            Location point = center.clone().add(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+            world.spawnParticle(Particle.FLAME, point.add(0, 1, 0), 8, 0.1, 0.3, 0.1, 0.01);
+        }
+        world.playSound(center, Sound.ITEM_FIRECHARGE_USE, 0.8F, 1.3F);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPassiveDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        double maxHealth = Optional.ofNullable(player.getAttribute(Attribute.MAX_HEALTH))
+                .map(AttributeInstance::getValue).orElse(20.0D);
+        double postHealth = player.getHealth() - event.getFinalDamage();
+        for (GoblinAspect aspect : GoblinAspect.values()) {
+            AspectProfile profile = profiles.get(aspect);
+            boolean inheritor = profile.isInheritor(uuid);
+            boolean shared = profile.shared.contains(uuid);
+            if (!inheritor && !shared) {
+                continue;
+            }
+            Optional<GoblinSkill> passiveSkill = aspect.getSkills().stream()
+                    .filter(skill -> skill.getCategory() == GoblinSkillCategory.PASSIVE)
+                    .findFirst();
+            if (passiveSkill.isEmpty()) {
+                continue;
+            }
+            Optional<PassiveTrigger> triggerOptional = passiveSkill.get().getPassiveTrigger();
+            if (triggerOptional.isEmpty()) {
+                continue;
+            }
+            PassiveTrigger trigger = triggerOptional.get();
+            Map<UUID, Long> map = passiveCooldowns.get(aspect);
+            long now = System.currentTimeMillis();
+            long next = map.getOrDefault(uuid, 0L);
+            if (now < next) {
+                continue;
+            }
+            if (trigger.getHealthThreshold() > 0 && maxHealth > 0) {
+                if (postHealth / maxHealth > trigger.getHealthThreshold()) {
+                    continue;
+                }
+            }
+            double effectiveness = inheritor ? 1.0D : passiveSkill.get().getSharedEffectiveness();
+            applyPassiveTrigger(player, player, trigger, effectiveness);
+            map.put(uuid, now + trigger.getCooldownTicks() * 50L);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onScentReaderMove(PlayerMoveEvent event) {
+        if (event.getTo() == null) {
+            return;
+        }
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+                && event.getFrom().getBlockY() == event.getTo().getBlockY()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
+        Player player = event.getPlayer();
+        AspectProfile profile = profiles.get(GoblinAspect.SPEED);
+        UUID uuid = player.getUniqueId();
+        boolean inheritor = profile.isInheritor(uuid);
+        boolean shared = profile.shared.contains(uuid);
+        if (!inheritor && !shared) {
+            return;
+        }
+        Optional<GoblinSkill> passiveSkill = GoblinAspect.SPEED.getSkills().stream()
+                .filter(skill -> skill.getCategory() == GoblinSkillCategory.PASSIVE)
+                .findFirst();
+        if (passiveSkill.isEmpty()) {
+            return;
+        }
+        Optional<PassiveTrigger> triggerOptional = passiveSkill.get().getPassiveTrigger();
+        if (triggerOptional.isEmpty()) {
+            return;
+        }
+        Map<UUID, Long> map = passiveCooldowns.get(GoblinAspect.SPEED);
+        long now = System.currentTimeMillis();
+        if (now < map.getOrDefault(uuid, 0L)) {
+            return;
+        }
+        double radius = inheritor ? 18.0D : 12.0D;
+        LivingEntity closest = null;
+        double best = Double.MAX_VALUE;
+        for (Player other : player.getWorld().getPlayers()) {
+            if (other.equals(player) || other.getGameMode() == GameMode.SPECTATOR) {
+                continue;
+            }
+            double distanceSq = other.getLocation().distanceSquared(player.getLocation());
+            if (distanceSq <= radius * radius && distanceSq < best) {
+                closest = other;
+                best = distanceSq;
+            }
+        }
+        if (closest == null) {
+            return;
+        }
+        double effectiveness = inheritor ? 1.0D : passiveSkill.get().getSharedEffectiveness();
+        applyPassiveTrigger(player, closest, triggerOptional.get(), effectiveness);
+        map.put(uuid, now + triggerOptional.get().getCooldownTicks() * 50L);
+    }
+
+    private void applyPassiveTrigger(Player owner, LivingEntity target, PassiveTrigger trigger, double effectiveness) {
+        if (target == null) {
+            return;
+        }
+        boolean selfTarget = owner != null && owner.getUniqueId().equals(target.getUniqueId());
+        for (SkillStatusEffect status : trigger.getStatuses()) {
+            int duration = status.getDurationTicks();
+            if (selfTarget) {
+                switch (status.getType()) {
+                    case SHIELD -> owner.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, duration, status.getAmplifier() + 1, true, true, true));
+                    case WEAKEN -> owner.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, duration, Math.max(0, status.getAmplifier()), true, true, true));
+                    case BLEED -> applyBleed(owner, effectiveness, duration, status.getAmplifier(), "");
+                    case SLOW -> owner.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, duration, status.getAmplifier(), true, true, true));
+                    default -> { }
+                }
+            } else {
+                switch (status.getType()) {
+                    case BLEED -> applyBleed(target, effectiveness, duration, status.getAmplifier(), "");
+                    case SLOW -> target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, duration, Math.max(0, status.getAmplifier()), true, true, true));
+                    case WEAKEN -> target.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, duration, Math.max(0, status.getAmplifier()), true, true, true));
+                    case BURN -> target.setFireTicks(Math.max(target.getFireTicks(), duration));
+                    default -> { }
+                }
+            }
+        }
+        if (owner != null && !trigger.getMessageKey().isBlank()) {
+            owner.sendMessage(messages.format(trigger.getMessageKey()));
+        }
+        Location effectLocation = target.getLocation().add(0, 1, 0);
+        target.getWorld().spawnParticle(Particle.CRIT, effectLocation, 20, 0.3, 0.3, 0.3, 0.05);
+        target.getWorld().playSound(effectLocation, Sound.ENTITY_PHANTOM_FLAP, 0.4F, selfTarget ? 1.2F : 0.7F);
+    }
+
     private void applyPassive(GoblinAspect aspect, Player player, boolean inheritor) {
         removePassive(aspect, player, inheritor);
         switch (aspect) {
@@ -920,6 +1371,11 @@ public class AspectManager {
             case SPEED -> applySpeedPassive(player, inheritor ? 1.0D : aspect.getSharedPassiveRatio());
             default -> { /* no passive */ }
         }
+        Optional<GoblinSkill> passiveSkill = aspect.getSkills().stream()
+                .filter(skill -> skill.getCategory() == GoblinSkillCategory.PASSIVE)
+                .findFirst();
+        passiveSkill.flatMap(GoblinSkill::getPassiveTrigger).ifPresent(trigger ->
+                passiveCooldowns.get(aspect).put(player.getUniqueId(), 0L));
     }
 
     private void removePassive(GoblinAspect aspect, Player player, boolean inheritor) {

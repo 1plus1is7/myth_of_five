@@ -1,6 +1,7 @@
 package me.j17e4eo.mythof5.command;
 
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.relic.LoreFragmentManager;
 import me.j17e4eo.mythof5.relic.RelicFusion;
 import me.j17e4eo.mythof5.relic.RelicManager;
 import me.j17e4eo.mythof5.relic.RelicType;
@@ -19,10 +20,12 @@ public class RelicCommand implements CommandExecutor, TabCompleter {
 
     private final RelicManager relicManager;
     private final Messages messages;
+    private final LoreFragmentManager loreFragmentManager;
 
-    public RelicCommand(RelicManager relicManager, Messages messages) {
+    public RelicCommand(RelicManager relicManager, Messages messages, LoreFragmentManager loreFragmentManager) {
         this.relicManager = relicManager;
         this.messages = messages;
+        this.loreFragmentManager = loreFragmentManager;
     }
 
     @Override
@@ -47,6 +50,14 @@ public class RelicCommand implements CommandExecutor, TabCompleter {
             }
             case "fusions" -> {
                 showFusions(sender);
+                return true;
+            }
+            case "forge" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(messages.format("commands.common.player_only"));
+                    return true;
+                }
+                loreFragmentManager.attemptForge(player);
                 return true;
             }
             default -> {
@@ -92,7 +103,7 @@ public class RelicCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            completions.addAll(List.of("help", "list", "fusions"));
+            completions.addAll(List.of("help", "list", "fusions", "forge"));
         }
         String current = args[args.length - 1].toLowerCase(Locale.ROOT);
         return completions.stream().filter(entry -> entry.toLowerCase(Locale.ROOT).startsWith(current)).toList();

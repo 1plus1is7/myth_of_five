@@ -9,6 +9,7 @@ public enum ChronicleEventType {
     LOSS,
     SHARE,
     SKILL,
+    SKILL_UPGRADE,
     RELIC_GAIN,
     RELIC_FUSION,
     OMEN,

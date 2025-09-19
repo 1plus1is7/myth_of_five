@@ -25,7 +25,10 @@ import me.j17e4eo.mythof5.listener.PlayerListener;
 import me.j17e4eo.mythof5.listener.SquadListener;
 import me.j17e4eo.mythof5.omens.OmenManager;
 import me.j17e4eo.mythof5.relic.RelicManager;
+import me.j17e4eo.mythof5.relic.LoreFragmentManager;
 import me.j17e4eo.mythof5.squad.SquadManager;
+import me.j17e4eo.mythof5.inherit.skilltree.SkillTreeManager;
+import me.j17e4eo.mythof5.meta.MetaEventManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -53,6 +56,9 @@ public final class Mythof5 extends JavaPlugin {
     private AspectManager aspectManager;
     private OmenManager omenManager;
     private BalanceTable balanceTable;
+    private SkillTreeManager skillTreeManager;
+    private MetaEventManager metaEventManager;
+    private LoreFragmentManager loreFragmentManager;
     private HunterManager hunterManager;
     private ParadoxManager paradoxManager;
     private SealManager sealManager;
@@ -71,12 +77,19 @@ public final class Mythof5 extends JavaPlugin {
         messages = new Messages(this);
         chronicleManager = new ChronicleManager(this, messages);
         chronicleManager.load();
-        relicManager = new RelicManager(this, messages, chronicleManager);
-        relicManager.load();
-        omenManager = new OmenManager(this, messages, chronicleManager);
         balanceTable = new BalanceTable();
+        skillTreeManager = new SkillTreeManager(this, messages, chronicleManager);
+        skillTreeManager.load();
+        metaEventManager = new MetaEventManager(this, messages);
+        relicManager = new RelicManager(this, messages, chronicleManager, balanceTable, skillTreeManager, metaEventManager);
+        relicManager.load();
+        loreFragmentManager = new LoreFragmentManager(this, messages, relicManager);
+        loreFragmentManager.setMetaEventManager(metaEventManager);
+        metaEventManager.setLoreFragmentManager(loreFragmentManager);
+        omenManager = new OmenManager(this, messages, chronicleManager);
 
-        aspectManager = new AspectManager(this, messages, chronicleManager, relicManager, omenManager);
+        aspectManager = new AspectManager(this, messages, chronicleManager, relicManager, omenManager,
+                skillTreeManager, balanceTable, metaEventManager);
         aspectManager.load();
 
         goblinWeaponManager = new GoblinWeaponManager(this, messages, aspectManager);
@@ -122,6 +135,7 @@ public final class Mythof5 extends JavaPlugin {
                 sealPatchValue, deathDecay, witnessRadius, broadcastCooldownMillis,
                 longThreshold, mediumThreshold, lateThreshold, gaugeOverrides);
         hunterManager.load();
+        aspectManager.setHunterManager(hunterManager);
 
         sealManager = new SealManager(this, messages, hunterManager, aspectManager);
 
@@ -137,6 +151,9 @@ public final class Mythof5 extends JavaPlugin {
         pluginManager.registerEvents(playerListener, this);
         pluginManager.registerEvents(inheritManager, this);
         pluginManager.registerEvents(goblinWeaponManager, this);
+        pluginManager.registerEvents(aspectManager, this);
+        pluginManager.registerEvents(relicManager, this);
+        pluginManager.registerEvents(loreFragmentManager, this);
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
         pluginManager.registerEvents(new HunterListener(hunterManager), this);
         pluginManager.registerEvents(sealManager, this);
@@ -152,6 +169,7 @@ public final class Mythof5 extends JavaPlugin {
             aspectManager.handlePlayerJoin(player);
             hunterManager.handleJoin(player);
             sealManager.handleJoin(player);
+            relicManager.handleJoin(player);
         }
         bossManager.initializeBossBars();
         playerListener.initializeExistingPlayers();
@@ -170,6 +188,9 @@ public final class Mythof5 extends JavaPlugin {
         }
         if (relicManager != null) {
             relicManager.save();
+        }
+        if (skillTreeManager != null) {
+            skillTreeManager.save();
         }
         if (chronicleManager != null) {
             chronicleManager.save();
@@ -212,12 +233,12 @@ public final class Mythof5 extends JavaPlugin {
         squadCommand.setTabCompleter(squadExecutor);
 
         PluginCommand goblinCommand = Objects.requireNonNull(getCommand("goblin"), "Command goblin not defined in plugin.yml");
-        GoblinCommand goblinExecutor = new GoblinCommand(aspectManager, messages);
+        GoblinCommand goblinExecutor = new GoblinCommand(aspectManager, messages, skillTreeManager);
         goblinCommand.setExecutor(goblinExecutor);
         goblinCommand.setTabCompleter(goblinExecutor);
 
         PluginCommand relicCommand = Objects.requireNonNull(getCommand("relic"), "Command relic not defined in plugin.yml");
-        RelicCommand relicExecutor = new RelicCommand(relicManager, messages);
+        RelicCommand relicExecutor = new RelicCommand(relicManager, messages, loreFragmentManager);
         relicCommand.setExecutor(relicExecutor);
         relicCommand.setTabCompleter(relicExecutor);
 
@@ -325,6 +346,7 @@ public final class Mythof5 extends JavaPlugin {
         config.addDefault("movement.double_jump.enabled", true);
         config.addDefault("movement.double_jump.vertical_velocity", 0.9D);
         config.addDefault("movement.double_jump.forward_multiplier", 0.6D);
+        config.addDefault("relic.fragments.drop_chance", 0.01D);
         config.addDefault("hunter.release.low", 0.0052D);
         config.addDefault("hunter.release.base", 0.1835D);
         config.addDefault("hunter.release.slope", 0.012D);
