@@ -50,7 +50,7 @@
 * 이 리스너는 구성 가능한 더블 점프도 구현하여, 생존/어드벤처 플레이어가 지상에 있을 때 비행을 회복하고, 이를 소비해 설정된 수직/전방 속도로 도약하며, 로켓 음향을 재생합니다. 활공/크리에이티브 모드에서는 토글이 억제됩니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/listener/PlayerListener.java†L110-L200】【F:mythof5/src/main/java/me/j17e4eo/mythof5/Mythof5.java†L239-L253】【F:mythof5/src/main/resources/config.yml†L41-L45】
 
 ## 관리 도구와 접근
-* `/myth admin`은 보스 소환/목록/종료, 계승 강제 변경, 유물 부여 또는 제거, 최근 연대기 항목 출력, 전조 트리거, 밸런스 표 참조 덤프 등의 하위 명령을 제공합니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/MythAdminCommand.java†L64-L425】
+* `/myth boss`, `/myth inherit`, `/myth relic`, `/myth chronicle`, `/myth omen`, `/myth balance` 등 짧은 루트 명령으로 보스 관리, 계승 강제 변경, 유물 부여/회수, 연대기 조회, 전조 호출, 밸런스 요약을 빠르게 실행할 수 있습니다.【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/MythAdminCommand.java†L64-L458】
 * myth, squad, goblin, relic, hunter, seal 명령은 `plugin.yml`에 등록된 그대로 제공되며, 실행 시 별도의 권한 검증 없이 모든 플레이어가 하위 명령을 사용할 수 있습니다.【F:mythof5/src/main/resources/plugin.yml†L1-L24】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/MythAdminCommand.java†L63-L86】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/SquadCommand.java†L31-L149】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/GoblinCommand.java†L33-L119】【F:mythof5/src/main/java/me/j17e4eo/mythof5/command/RelicCommand.java†L28-L95】【F:mythof5/src/main/java/me/j17e4eo/mythof5/hunter/command/HunterCommand.java†L49-L119】【F:mythof5/src/main/java/me/j17e4eo/mythof5/hunter/seal/command/SealCommand.java†L36-L135】
 
 ## 밸런스 참고와 메시징

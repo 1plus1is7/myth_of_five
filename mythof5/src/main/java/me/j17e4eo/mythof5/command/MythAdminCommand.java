@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,6 +52,7 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     private final BalanceTable balanceTable;
     private final Messages messages;
     private final AdminGuiManager guiManager;
+    private final Map<String, AdminExecutor> adminExecutors;
 
     public MythAdminCommand(Mythof5 plugin, BossManager bossManager, InheritManager inheritManager,
                             AspectManager aspectManager, RelicManager relicManager,
@@ -66,6 +68,20 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         this.balanceTable = balanceTable;
         this.messages = messages;
         this.guiManager = guiManager;
+
+        Map<String, AdminExecutor> executors = new LinkedHashMap<>();
+        executors.put("boss spawn", this::handleSpawnBoss);
+        executors.put("boss list", (sender, label, args) -> handleBossList(sender));
+        executors.put("boss end", this::handleEndBoss);
+        executors.put("inherit set", this::handleInheritSet);
+        executors.put("inherit clear", this::handleClearInherit);
+        executors.put("relic give", (sender, label, args) -> handleRelicAction(sender, "give", args));
+        executors.put("relic remove", (sender, label, args) -> handleRelicAction(sender, "remove", args));
+        executors.put("chronicle", (sender, label, args) -> handleChronicle(sender, args));
+        executors.put("omen", (sender, label, args) -> handleOmen(sender, args));
+        executors.put("balance", (sender, label, args) -> handleBalance(sender, args));
+        this.adminExecutors = Collections.unmodifiableMap(executors);
+
     }
 
     @Override
@@ -87,32 +103,25 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
             handleGuide(sender, label);
             return true;
         }
-        if (!root.equals("admin")) {
-            sendUsage(sender, label);
-            return true;
-        }
-        if (args.length < 2) {
-            if (sender instanceof Player player) {
-                guiManager.openMainMenu(player);
-            } else {
+        if (root.equals("admin")) {
+            if (args.length == 1) {
+                if (sender instanceof Player player) {
+                    guiManager.openMainMenu(player);
+                } else {
+                    sendUsage(sender, label);
+                }
+                return true;
+            }
+            String[] remapped = remapLegacyAdmin(args);
+            if (remapped == null || !dispatchRoute(sender, label, remapped)) {
                 sendUsage(sender, label);
             }
             return true;
         }
-        String sub = args[1].toLowerCase(Locale.ROOT);
-        String[] tail = Arrays.copyOfRange(args, 2, args.length);
-        return switch (sub) {
-            case "spawnboss" -> { handleSpawnBoss(sender, label, tail); yield true; }
-            case "bosslist" -> { handleBossList(sender); yield true; }
-            case "endboss" -> { handleEndBoss(sender, label, tail); yield true; }
-            case "inherit" -> { handleInherit(sender, tail); yield true; }
-            case "clearinherit" -> { handleClearInherit(sender, tail); yield true; }
-            case "relic" -> { handleRelic(sender, tail); yield true; }
-            case "chronicle" -> { handleChronicle(sender, tail); yield true; }
-            case "omen" -> { handleOmen(sender, tail); yield true; }
-            case "balance" -> { handleBalance(sender, tail); yield true; }
-            default -> { sendUsage(sender, label); yield true; }
-        };
+        if (!dispatchRoute(sender, label, args)) {
+            sendUsage(sender, label);
+        }
+        return true;
     }
 
     private void handleSpawnBoss(CommandSender sender, String label, String[] args) {
@@ -232,7 +241,7 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void handleInherit(CommandSender sender, String[] args) {
+    private void handleInheritSet(CommandSender sender, String label, String[] args) {
         if (args.length < 2) {
             sender.sendMessage(Component.text(messages.format("commands.admin.inherit_usage"), NamedTextColor.RED));
             return;
@@ -257,7 +266,7 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         )), NamedTextColor.GREEN));
     }
 
-    private void handleClearInherit(CommandSender sender, String[] args) {
+    private void handleClearInherit(CommandSender sender, String label, String[] args) {
         if (args.length < 1) {
             sender.sendMessage(Component.text(messages.format("commands.admin.clear_usage"), NamedTextColor.RED));
             return;
@@ -273,18 +282,17 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
         )), NamedTextColor.GREEN));
     }
 
-    private void handleRelic(CommandSender sender, String[] args) {
-        if (args.length < 3) {
+    private void handleRelicAction(CommandSender sender, String action, String[] args) {
+        if (args.length < 2) {
             sender.sendMessage(Component.text(messages.format("commands.admin.relic_usage"), NamedTextColor.RED));
             return;
         }
-        String action = args[0].toLowerCase(Locale.ROOT);
-        Player target = Bukkit.getPlayerExact(args[1]);
+        Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
             sender.sendMessage(Component.text(messages.format("commands.common.player_not_online"), NamedTextColor.RED));
             return;
         }
-        RelicType type = RelicType.fromKey(args[2]);
+        RelicType type = RelicType.fromKey(args[1]);
         if (type == null) {
             sender.sendMessage(Component.text(messages.format("relic.unknown"), NamedTextColor.RED));
             return;
@@ -423,59 +431,44 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return partial(List.of("admin", "guide", "help"), args[0]);
+            return partial(List.of("boss", "chronicle", "inherit", "relic", "omen", "balance", "guide", "help", "admin"), args[0]);
         }
-        if (!args[0].equalsIgnoreCase("admin")) {
+        String root = args[0].toLowerCase(Locale.ROOT);
+        if (root.equals("guide") || root.equals("help")) {
             return Collections.emptyList();
         }
-        if (args.length == 2) {
-            return partial(List.of("spawnboss", "bosslist", "endboss", "inherit", "clearinherit", "relic", "chronicle", "omen", "balance"), args[1]);
+        if (root.equals("admin")) {
+            String[] legacyArgs = Arrays.copyOfRange(args, 1, args.length);
+            return completeLegacyAdmin(sender, legacyArgs);
         }
-        String sub = args[1].toLowerCase(Locale.ROOT);
-        switch (sub) {
-            case "spawnboss" -> {
-                if (args.length == 3) {
-                    return Arrays.stream(EntityType.values()).map(Enum::name).collect(Collectors.toList());
-                }
+        switch (root) {
+            case "boss" -> {
+                String[] bossArgs = Arrays.copyOfRange(args, 1, args.length);
+                return completeBoss(sender, bossArgs);
             }
-            case "inherit", "clearinherit" -> {
-                if (args.length == 3) {
-                    List<String> options = new ArrayList<>();
-                    for (GoblinAspect aspect : GoblinAspect.values()) {
-                        options.add(aspect.getKey());
-                    }
-                    return options;
-                }
-                if (args.length == 4 && sub.equals("inherit")) {
-                    return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
-                }
+            case "inherit" -> {
+                String[] inheritArgs = Arrays.copyOfRange(args, 1, args.length);
+                return completeInherit(sender, inheritArgs);
             }
             case "relic" -> {
-                if (args.length == 3) {
-                    return List.of("give", "remove");
-                }
-                if (args.length == 4) {
-                    return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
-                }
-                if (args.length == 5) {
-                    List<String> keys = new ArrayList<>();
-                    for (RelicType type : RelicType.values()) {
-                        keys.add(type.getKey());
-                    }
-                    return keys;
-                }
+                String[] relicArgs = Arrays.copyOfRange(args, 1, args.length);
+                return completeRelic(sender, relicArgs);
             }
             case "omen" -> {
-                if (args.length == 3) {
-                    List<String> keys = new ArrayList<>();
-                    for (OmenStage stage : OmenStage.values()) {
-                        keys.add(stage.name());
-                    }
-                    return keys;
-                }
+                String[] omenArgs = Arrays.copyOfRange(args, 1, args.length);
+                return completeOmen(sender, omenArgs);
+            }
+            case "balance" -> {
+                String[] balanceArgs = Arrays.copyOfRange(args, 1, args.length);
+                return completeBalance(sender, balanceArgs);
+            }
+            case "chronicle" -> {
+                return Collections.emptyList();
+            }
+            default -> {
+                return Collections.emptyList();
             }
         }
-        return Collections.emptyList();
     }
 
     private List<String> partial(List<String> values, String token) {
@@ -487,4 +480,221 @@ public class MythAdminCommand implements CommandExecutor, TabCompleter {
                 .filter(value -> value.toLowerCase(Locale.ROOT).startsWith(lower))
                 .collect(Collectors.toList());
     }
+
+    private List<String> completeSpawnBoss(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(Arrays.stream(EntityType.values()).map(Enum::name).collect(Collectors.toList()), args[0]);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeEndBoss(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            List<String> ids = bossManager.getActiveBosses().stream()
+                    .map(instance -> String.valueOf(instance.getId()))
+                    .collect(Collectors.toList());
+            return partial(ids, args[0]);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeInheritSet(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(Arrays.stream(GoblinAspect.values())
+                    .map(GoblinAspect::getKey)
+                    .collect(Collectors.toList()), args[0]);
+        }
+        if (args.length == 2) {
+            return partial(Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .collect(Collectors.toList()), args[1]);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeClearInherit(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(Arrays.stream(GoblinAspect.values())
+                    .map(GoblinAspect::getKey)
+                    .collect(Collectors.toList()), args[0]);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeRelicAction(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .collect(Collectors.toList()), args[0]);
+        }
+        if (args.length == 2) {
+            return partial(Arrays.stream(RelicType.values())
+                    .map(RelicType::getKey)
+                    .collect(Collectors.toList()), args[1]);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeOmen(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(Arrays.stream(OmenStage.values()).map(Enum::name).collect(Collectors.toList()), args[0]);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeBalance(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(List.of("report", "export"), args[0]);
+        }
+        return Collections.emptyList();
+    }
+
+    private boolean dispatchRoute(CommandSender sender, String label, String[] args) {
+        ResolvedRoute route = resolveRoute(args);
+        if (route == null) {
+            return false;
+        }
+        route.executor().execute(sender, label, route.tail());
+        return true;
+    }
+
+    private ResolvedRoute resolveRoute(String[] args) {
+        if (args.length == 0) {
+            return null;
+        }
+        int maxDepth = Math.min(2, args.length);
+        String[] lowered = new String[maxDepth];
+        for (int i = 0; i < maxDepth; i++) {
+            lowered[i] = args[i].toLowerCase(Locale.ROOT);
+        }
+        for (int depth = maxDepth; depth >= 1; depth--) {
+            String key = String.join(" ", Arrays.copyOfRange(lowered, 0, depth));
+            AdminExecutor executor = adminExecutors.get(key);
+            if (executor != null) {
+                String[] tail = Arrays.copyOfRange(args, depth, args.length);
+                return new ResolvedRoute(executor, tail);
+            }
+        }
+        return null;
+    }
+
+    private String[] remapLegacyAdmin(String[] args) {
+        if (args.length < 2) {
+            return null;
+        }
+        String sub = args[1].toLowerCase(Locale.ROOT);
+        String[] tail = Arrays.copyOfRange(args, 2, args.length);
+        return switch (sub) {
+            case "spawnboss" -> merge(new String[]{"boss", "spawn"}, tail);
+            case "bosslist" -> merge(new String[]{"boss", "list"}, tail);
+            case "endboss" -> merge(new String[]{"boss", "end"}, tail);
+            case "inherit" -> merge(new String[]{"inherit", "set"}, tail);
+            case "clearinherit" -> merge(new String[]{"inherit", "clear"}, tail);
+            case "relic" -> merge(new String[]{"relic"}, tail);
+            case "chronicle" -> merge(new String[]{"chronicle"}, tail);
+            case "omen" -> merge(new String[]{"omen"}, tail);
+            case "balance" -> merge(new String[]{"balance"}, tail);
+            default -> null;
+        };
+    }
+
+    private String[] merge(String[] head, String[] tail) {
+        String[] result = new String[head.length + tail.length];
+        System.arraycopy(head, 0, result, 0, head.length);
+        System.arraycopy(tail, 0, result, head.length, tail.length);
+        return result;
+    }
+
+    private List<String> completeLegacyAdmin(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            return List.of("spawnboss", "bosslist", "endboss", "inherit", "clearinherit", "relic", "chronicle", "omen", "balance");
+        }
+        if (args.length == 1) {
+            return partial(List.of("spawnboss", "bosslist", "endboss", "inherit", "clearinherit", "relic", "chronicle", "omen", "balance"), args[0]);
+        }
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        String[] tail = Arrays.copyOfRange(args, 1, args.length);
+        return switch (sub) {
+            case "spawnboss" -> completeSpawnBoss(sender, tail);
+            case "bosslist" -> Collections.emptyList();
+            case "endboss" -> completeEndBoss(sender, tail);
+            case "inherit" -> completeInheritSet(sender, tail);
+            case "clearinherit" -> completeClearInherit(sender, tail);
+            case "relic" -> completeLegacyRelic(sender, tail);
+            case "chronicle" -> Collections.emptyList();
+            case "omen" -> completeOmen(sender, tail);
+            case "balance" -> completeBalance(sender, tail);
+            default -> Collections.emptyList();
+        };
+    }
+
+    private List<String> completeLegacyRelic(CommandSender sender, String[] args) {
+        if (args.length == 1) {
+            return partial(List.of("give", "remove"), args[0]);
+        }
+        if (args.length >= 2) {
+            String action = args[0].toLowerCase(Locale.ROOT);
+            String[] tail = Arrays.copyOfRange(args, 1, args.length);
+            if (action.equals("give") || action.equals("remove")) {
+                return completeRelicAction(sender, tail);
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    private List<String> completeBoss(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            return List.of("spawn", "list", "end");
+        }
+        if (args.length == 1) {
+            return partial(List.of("spawn", "list", "end"), args[0]);
+        }
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        String[] tail = Arrays.copyOfRange(args, 1, args.length);
+        return switch (sub) {
+            case "spawn" -> completeSpawnBoss(sender, tail);
+            case "end" -> completeEndBoss(sender, tail);
+            default -> Collections.emptyList();
+        };
+    }
+
+    private List<String> completeInherit(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            return List.of("set", "clear");
+        }
+        if (args.length == 1) {
+            return partial(List.of("set", "clear"), args[0]);
+        }
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        String[] tail = Arrays.copyOfRange(args, 1, args.length);
+        return switch (sub) {
+            case "set" -> completeInheritSet(sender, tail);
+            case "clear" -> completeClearInherit(sender, tail);
+            default -> Collections.emptyList();
+        };
+    }
+
+    private List<String> completeRelic(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            return List.of("give", "remove");
+        }
+        if (args.length == 1) {
+            return partial(List.of("give", "remove"), args[0]);
+        }
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        String[] tail = Arrays.copyOfRange(args, 1, args.length);
+        if (sub.equals("give") || sub.equals("remove")) {
+            return completeRelicAction(sender, tail);
+        }
+        return Collections.emptyList();
+    }
+
+    private record ResolvedRoute(AdminExecutor executor, String[] tail) {
+    }
+
+    @FunctionalInterface
+    private interface AdminExecutor {
+        void execute(CommandSender sender, String label, String[] args);
+    }
+
 }
