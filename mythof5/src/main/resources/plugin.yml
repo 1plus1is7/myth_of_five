@@ -22,3 +22,6 @@ commands:
   seal:
     description: Weapon sealing interface
     usage: /seal
+  rift:
+    description: Rift activation and navigation commands
+    usage: /rift <subcommand>

@@ -1,0 +1,11 @@
+type: EVOKER
+name: '균열의 지배자'
+health: 320
+damage-multiplier: 1.2
+potion-effects:
+  - type: INCREASE_DAMAGE
+    amplifier: 1
+    duration: 3600
+  - type: DAMAGE_RESISTANCE
+    amplifier: 1
+    duration: 3600
