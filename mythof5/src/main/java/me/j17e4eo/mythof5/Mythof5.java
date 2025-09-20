@@ -135,9 +135,14 @@ public final class Mythof5 extends JavaPlugin {
                 sealPatchValue, deathDecay, witnessRadius, broadcastCooldownMillis,
                 longThreshold, mediumThreshold, lateThreshold, gaugeOverrides);
         hunterManager.load();
+        hunterManager.setAspectManager(aspectManager);
+        hunterManager.setInheritManager(inheritManager);
         aspectManager.setHunterManager(hunterManager);
 
         sealManager = new SealManager(this, messages, hunterManager, aspectManager);
+        aspectManager.setSealManager(sealManager);
+        inheritManager.setHunterManager(hunterManager);
+        inheritManager.setSealManager(sealManager);
 
         long ritualWindow = getConfig().getLong("hunter.paradox.ritual_window", 600L);
         double failureScale = getConfig().getDouble("hunter.paradox.failure_scale", 1.5D);

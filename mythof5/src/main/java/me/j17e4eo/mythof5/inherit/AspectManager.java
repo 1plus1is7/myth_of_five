@@ -13,6 +13,7 @@ import me.j17e4eo.mythof5.inherit.skill.SkillSpec;
 import me.j17e4eo.mythof5.inherit.skill.SkillStatusEffect;
 import me.j17e4eo.mythof5.inherit.skilltree.SkillTreeManager;
 import me.j17e4eo.mythof5.hunter.HunterManager;
+import me.j17e4eo.mythof5.hunter.seal.SealManager;
 import me.j17e4eo.mythof5.balance.BalanceTable;
 import me.j17e4eo.mythof5.omens.OmenManager;
 import me.j17e4eo.mythof5.omens.OmenStage;
@@ -116,6 +117,7 @@ public class AspectManager implements Listener {
     private final Map<GoblinAspect, Map<UUID, Long>> passiveCooldowns = new EnumMap<>(GoblinAspect.class);
     private GoblinWeaponManager weaponManager;
     private HunterManager hunterManager;
+    private SealManager sealManager;
     private File dataFile;
     private YamlConfiguration dataConfig;
 
@@ -174,6 +176,10 @@ public class AspectManager implements Listener {
 
     public void setHunterManager(HunterManager hunterManager) {
         this.hunterManager = hunterManager;
+    }
+
+    public void setSealManager(SealManager sealManager) {
+        this.sealManager = sealManager;
     }
 
     public void load() {
@@ -310,6 +316,10 @@ public class AspectManager implements Listener {
         boolean victimIsHunter = hunterManager != null
                 && hunterManager.findProfile(victim.getUniqueId()).map(profile -> profile.isEngraved()).orElse(false);
         boolean killerIsInheritor = killer != null && isInheritorOfAnyAspect(killer.getUniqueId());
+        boolean victimIsGoblinInheritor = isInheritorOfAnyAspect(victim.getUniqueId());
+        if (killerIsHunter && victimIsGoblinInheritor && sealManager != null) {
+            sealManager.dropFlame(killer, victim);
+        }
         if (victimIsHunter && killerIsInheritor) {
             balanceTable.recordBattle(false);
         }
@@ -323,7 +333,7 @@ public class AspectManager implements Listener {
                 balanceTable.recordBattle(true);
                 recordedHunterWin = true;
             }
-            if (killer != null && !killer.getUniqueId().equals(victim.getUniqueId())) {
+            if (killer != null && !killer.getUniqueId().equals(victim.getUniqueId()) && !killerIsHunter) {
                 setInheritor(aspect, killer, true, messages.format("chronicle.inherit.transfer", Map.of(
                         "killer", killer.getName(),
                         "victim", victim.getName(),
@@ -1024,7 +1034,7 @@ public class AspectManager implements Listener {
         return meta != null && meta.getPersistentDataContainer().has(legendaryWeaponKey, org.bukkit.persistence.PersistentDataType.BYTE);
     }
 
-    private boolean isInheritorOfAnyAspect(UUID uuid) {
+    public boolean isInheritorOfAnyAspect(UUID uuid) {
         for (AspectProfile profile : profiles.values()) {
             if (profile.isInheritor(uuid)) {
                 return true;

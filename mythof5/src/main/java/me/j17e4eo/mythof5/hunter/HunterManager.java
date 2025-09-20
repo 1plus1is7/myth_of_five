@@ -13,6 +13,8 @@ import me.j17e4eo.mythof5.hunter.data.ArtifactType;
 import me.j17e4eo.mythof5.hunter.data.HunterOmenStage;
 import me.j17e4eo.mythof5.hunter.data.HunterProfile;
 import me.j17e4eo.mythof5.hunter.data.SealLogEntry;
+import me.j17e4eo.mythof5.inherit.AspectManager;
+import me.j17e4eo.mythof5.inherit.InheritManager;
 import me.j17e4eo.mythof5.hunter.event.HunterReleaseEvent;
 import me.j17e4eo.mythof5.hunter.math.SealMath;
 import me.j17e4eo.mythof5.hunter.test.HunterTestHook;
@@ -62,6 +64,8 @@ public class HunterManager {
     private YamlConfiguration dataConfig;
     private long lastBroadcast;
     private ParadoxManager paradoxManager;
+    private InheritManager inheritManager;
+    private AspectManager aspectManager;
 
     public HunterManager(Mythof5 plugin, Messages messages, ChronicleManager chronicleManager, SealMath sealMath,
                          double sealPatchValue, double deathIntegrityDecay, double witnessRadius,
@@ -83,6 +87,14 @@ public class HunterManager {
 
     public void setParadoxManager(ParadoxManager paradoxManager) {
         this.paradoxManager = paradoxManager;
+    }
+
+    public void setInheritManager(InheritManager inheritManager) {
+        this.inheritManager = inheritManager;
+    }
+
+    public void setAspectManager(AspectManager aspectManager) {
+        this.aspectManager = aspectManager;
     }
 
     public void load() {
@@ -195,6 +207,10 @@ public class HunterManager {
 
     public boolean acceptQuest(Player player) {
         HunterProfile profile = getProfile(player);
+        if (hasGoblinInheritance(player)) {
+            player.sendMessage(messages.format("hunter.error.is_inheritor"));
+            return false;
+        }
         if (profile.isQuestAccepted()) {
             player.sendMessage(messages.format("hunter.quest.already"));
             return false;
@@ -211,6 +227,10 @@ public class HunterManager {
         HunterProfile profile = getProfile(player);
         if (!profile.isQuestAccepted()) {
             player.sendMessage(messages.format("hunter.quest.not_ready"));
+            return false;
+        }
+        if (hasGoblinInheritance(player)) {
+            player.sendMessage(messages.format("hunter.error.is_inheritor"));
             return false;
         }
         if (profile.isEngraved()) {
@@ -535,6 +555,14 @@ public class HunterManager {
         if (paradoxManager != null) {
             paradoxManager.shutdown();
         }
+    }
+
+    private boolean hasGoblinInheritance(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (inheritManager != null && inheritManager.isInheritor(uuid)) {
+            return true;
+        }
+        return aspectManager != null && aspectManager.isInheritorOfAnyAspect(uuid);
     }
 
     public record UseResult(double integrity, double chance, double roll, boolean release, double fatigue) {
