@@ -29,6 +29,7 @@ import me.j17e4eo.mythof5.relic.LoreFragmentManager;
 import me.j17e4eo.mythof5.squad.SquadManager;
 import me.j17e4eo.mythof5.inherit.skilltree.SkillTreeManager;
 import me.j17e4eo.mythof5.meta.MetaEventManager;
+import me.j17e4eo.mythof5.weapon.WeaponManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -64,6 +65,7 @@ public final class Mythof5 extends JavaPlugin {
     private SealManager sealManager;
     private AdminGuiManager adminGuiManager;
     private GoblinWeaponManager goblinWeaponManager;
+    private WeaponManager weaponManager;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -94,6 +96,8 @@ public final class Mythof5 extends JavaPlugin {
 
         goblinWeaponManager = new GoblinWeaponManager(this, messages, aspectManager);
         aspectManager.setWeaponManager(goblinWeaponManager);
+
+        weaponManager = new WeaponManager(this);
 
         inheritManager = new InheritManager(this, messages, aspectManager);
         inheritManager.load();
@@ -156,6 +160,7 @@ public final class Mythof5 extends JavaPlugin {
         pluginManager.registerEvents(playerListener, this);
         pluginManager.registerEvents(inheritManager, this);
         pluginManager.registerEvents(goblinWeaponManager, this);
+        pluginManager.registerEvents(weaponManager, this);
         pluginManager.registerEvents(aspectManager, this);
         pluginManager.registerEvents(relicManager, this);
         pluginManager.registerEvents(loreFragmentManager, this);
