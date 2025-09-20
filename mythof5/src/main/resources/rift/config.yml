@@ -1,0 +1,23 @@
+chunk-radius: 1
+collapse-seconds: 60
+cooldown-seconds: 900
+awakening-seconds: 12
+eviction-seconds: 45
+max-active: 3
+activation-block: LODESTONE
+sounds:
+  activation: ENTITY_ILLUSIONER_CAST_SPELL
+  collapse: BLOCK_BEACON_DEACTIVATE
+protect:
+  break: true
+  place: true
+  pvp: true
+  fall: true
+suppress-natural-spawns: true
+compass:
+  display-name: '&d균열 나침반'
+  lore:
+    - '&7가장 가까운 균열을 가리킵니다.'
+    - '&7업데이트 주기: &f{seconds}초'
+  update-seconds: 5
+weekly-reset-day: MONDAY

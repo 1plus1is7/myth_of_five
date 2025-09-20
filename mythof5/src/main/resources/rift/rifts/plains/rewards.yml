@@ -1,0 +1,27 @@
+personal:
+  - type: EMERALD
+    min: 4
+    max: 12
+    weight: 4.0
+  - type: DIAMOND
+    min: 1
+    max: 3
+    weight: 2.0
+  - type: GOLDEN_APPLE
+    min: 1
+    max: 1
+    weight: 1.2
+party:
+  - type: ENCHANTED_GOLDEN_APPLE
+    min: 1
+    max: 1
+    weight: 1.0
+  - type: TOTEM_OF_UNDYING
+    min: 1
+    max: 2
+    weight: 1.5
+weekly:
+  - type: NETHERITE_SCRAP
+    min: 1
+    max: 1
+    weight: 1.0

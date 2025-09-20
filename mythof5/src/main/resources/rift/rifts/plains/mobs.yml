@@ -1,0 +1,22 @@
+display-name: '평원 균열'
+bar-color: PURPLE
+danger: 1.0
+spawn-radius: 14
+awakening-seconds: 10
+messages:
+  activation:
+    - '&d{player}&f 님이 고대 토템을 깨우고 있습니다!'
+    - '&5{theme}&f 균열이 흔들리며 빛을 발합니다.'
+  awakening:
+    - '&d{theme}&f 각성 에너지가 상승 중입니다. 남은 시간 &b{remaining}s'
+  phase1:
+    - '&b위상 1&f의 {wave}번째 웨이브가 다가옵니다: &e{summary}'
+  phase2:
+    - '&3위상 2&f 충격파 전개 준비! 다음 웨이브: &e{summary}'
+  boss:
+    - '&c{boss}&f 가 균열의 중심에서 나타납니다!'
+    - '&4보스 경보:&f {boss} 조심하세요!'
+  collapse:
+    - '&6균열 붕괴가 시작되었습니다. 보상을 챙기고 탈출하세요!'
+  mechanic:
+    - '&d{count}개의 균열 수정&f이 공명하고 있습니다. 상호작용으로 힘을 이끌어내세요.'

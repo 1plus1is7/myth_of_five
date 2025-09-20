@@ -26,6 +26,10 @@ import me.j17e4eo.mythof5.listener.SquadListener;
 import me.j17e4eo.mythof5.omens.OmenManager;
 import me.j17e4eo.mythof5.relic.RelicManager;
 import me.j17e4eo.mythof5.relic.LoreFragmentManager;
+import me.j17e4eo.mythof5.rift.RiftCommand;
+import me.j17e4eo.mythof5.rift.RiftGameplayListener;
+import me.j17e4eo.mythof5.rift.RiftManager;
+import me.j17e4eo.mythof5.rift.RiftProtectionListener;
 import me.j17e4eo.mythof5.squad.SquadManager;
 import me.j17e4eo.mythof5.inherit.skilltree.SkillTreeManager;
 import me.j17e4eo.mythof5.meta.MetaEventManager;
@@ -66,6 +70,7 @@ public final class Mythof5 extends JavaPlugin {
     private AdminGuiManager adminGuiManager;
     private GoblinWeaponManager goblinWeaponManager;
     private WeaponManager weaponManager;
+    private RiftManager riftManager;
     private boolean doubleJumpEnabled;
     private double doubleJumpVerticalVelocity;
     private double doubleJumpForwardMultiplier;
@@ -105,6 +110,9 @@ public final class Mythof5 extends JavaPlugin {
         bossManager = new BossManager(this, inheritManager, aspectManager, messages);
         squadManager = new SquadManager(this, messages);
         squadManager.load();
+
+        riftManager = new RiftManager(this);
+        riftManager.load();
 
         double fatigueWindowHours = getConfig().getDouble("hunter.release.fatigue_window_hours", 1.0D);
         long fatigueWindowMillis = (long) (fatigueWindowHours * 60D * 60D * 1000D);
@@ -167,6 +175,8 @@ public final class Mythof5 extends JavaPlugin {
         pluginManager.registerEvents(new SquadListener(squadManager, getConfig().getBoolean("squad.friendly_fire", false), messages), this);
         pluginManager.registerEvents(new HunterListener(hunterManager), this);
         pluginManager.registerEvents(sealManager, this);
+        pluginManager.registerEvents(new RiftGameplayListener(riftManager), this);
+        pluginManager.registerEvents(new RiftProtectionListener(riftManager), this);
 
         adminGuiManager = new AdminGuiManager(this, bossManager, aspectManager, relicManager,
                 chronicleManager, omenManager, balanceTable, messages);
@@ -219,6 +229,9 @@ public final class Mythof5 extends JavaPlugin {
         if (sealManager != null) {
             sealManager.shutdown();
         }
+        if (riftManager != null) {
+            riftManager.shutdown();
+        }
 
         if (doubleJumpEnabled) {
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -261,6 +274,11 @@ public final class Mythof5 extends JavaPlugin {
         SealCommand sealExecutor = new SealCommand(sealManager, messages);
         sealCommand.setExecutor(sealExecutor);
         sealCommand.setTabCompleter(sealExecutor);
+
+        PluginCommand riftCommand = Objects.requireNonNull(getCommand("rift"), "Command rift not defined in plugin.yml");
+        RiftCommand riftExecutor = new RiftCommand(riftManager);
+        riftCommand.setExecutor(riftExecutor);
+        riftCommand.setTabCompleter(riftExecutor);
     }
 
     public BossManager getBossManager() {
@@ -301,6 +319,10 @@ public final class Mythof5 extends JavaPlugin {
 
     public HunterManager getHunterManager() {
         return hunterManager;
+    }
+
+    public RiftManager getRiftManager() {
+        return riftManager;
     }
 
     public void broadcast(String message) {
