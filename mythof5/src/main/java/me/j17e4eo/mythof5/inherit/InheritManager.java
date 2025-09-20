@@ -2,6 +2,9 @@ package me.j17e4eo.mythof5.inherit;
 
 import me.j17e4eo.mythof5.Mythof5;
 import me.j17e4eo.mythof5.config.Messages;
+import me.j17e4eo.mythof5.hunter.HunterManager;
+import me.j17e4eo.mythof5.hunter.data.HunterProfile;
+import me.j17e4eo.mythof5.hunter.seal.SealManager;
 import me.j17e4eo.mythof5.inherit.aspect.GoblinAspect;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -82,6 +85,8 @@ public class InheritManager implements Listener {
     private YamlConfiguration dataConfig;
     private UUID inheritorId;
     private String inheritorName;
+    private HunterManager hunterManager;
+    private SealManager sealManager;
 
     public InheritManager(Mythof5 plugin, Messages messages, AspectManager aspectManager) {
         this.plugin = plugin;
@@ -155,6 +160,14 @@ public class InheritManager implements Listener {
         inheritorName = dataConfig.getString("inheritor.name");
     }
 
+    public void setHunterManager(HunterManager hunterManager) {
+        this.hunterManager = hunterManager;
+    }
+
+    public void setSealManager(SealManager sealManager) {
+        this.sealManager = sealManager;
+    }
+
     public void save() {
         if (dataConfig == null) {
             dataConfig = new YamlConfiguration();
@@ -212,6 +225,20 @@ public class InheritManager implements Listener {
         event.getItemsToKeep().removeIf(this::isGoblinFlame);
         Player killer = player.getKiller();
         if (killer != null && !killer.getUniqueId().equals(player.getUniqueId())) {
+            boolean killerIsHunter = hunterManager != null
+                    && hunterManager.findProfile(killer.getUniqueId()).map(HunterProfile::isEngraved).orElse(false);
+            if (killerIsHunter) {
+                if (sealManager != null) {
+                    boolean hasAspectInheritance = aspectManager != null
+                            && aspectManager.isInheritorOfAnyAspect(player.getUniqueId());
+                    if (!hasAspectInheritance) {
+                        sealManager.dropFlame(killer, player);
+                    }
+                }
+                String resolvedName = inheritorName != null ? inheritorName : player.getName();
+                clearInheritorInternal(true, resolvedName);
+                return;
+            }
             transferInheritance(killer, player);
             return;
         }
